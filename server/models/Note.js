@@ -27,6 +27,18 @@ const noteSchema = new mongoose.Schema(
       enum: { values: CATEGORIES, message: "Invalid category" },
       default: "Personal",
     },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
+    archived: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true } // adds createdAt and updatedAt automatically
 );

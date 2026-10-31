@@ -2,7 +2,7 @@
 
 A simple notes app inspired by Google Keep, built with the MERN stack (MongoDB, Express, React + Vite, Node.js).
 
-**Features:** create, view, edit, delete and search notes; six note colors; Personal / College / Work categories with a filter; responsive layout; loading, success and error messages; delete confirmation.
+**Features:** create, view, edit, search, pin and sort notes; six note colors; Personal / College / Work categories; archive and recoverable trash; locally autosaved drafts; keyboard search shortcuts; responsive layout; saved view preferences; loading, success and error messages.
 
 ## Prerequisites
 
@@ -67,6 +67,10 @@ VITE_API_URL=http://localhost:5000/api
 - **Filter:** use the All / Personal / College / Work chips.
 - **Edit:** click *Edit* on a card, change the fields, then *Save changes*.
 - **Delete:** click *Delete* on a card and confirm.
+- **Pin / sort:** pin notes to keep them at the top, then choose newest, oldest, or title order.
+- **Archive / trash:** archive notes to remove them from the main list. Delete moves a note to Trash, where it can be restored or permanently removed.
+- **Drafts:** unfinished notes are saved in this browser and restored when you return to the composer.
+- **Keyboard:** press **Ctrl/Cmd + K** or **/** to focus search; press **Escape** to close a dialog or clear a focused search.
 
 ## API
 

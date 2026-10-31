@@ -25,17 +25,21 @@ export default function EditModal({ note, onSave, onClose, onError }) {
     <div className="modal-backdrop" onClick={onClose}>
       <form
         className="modal"
-        style={{ background: color }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-title"
+        style={{ "--note-accent": color === "#ffffff" ? "#c7d6cb" : color }}
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2>Edit note</h2>
+        <h2 id="edit-title">Edit note</h2>
         <input
           type="text"
           className="title-input"
           value={title}
           maxLength={100}
           placeholder="Title"
+          aria-label="Note title"
           onChange={(e) => setTitle(e.target.value)}
         />
         <textarea
@@ -43,6 +47,7 @@ export default function EditModal({ note, onSave, onClose, onError }) {
           value={content}
           maxLength={5000}
           placeholder="Description"
+          aria-label="Note description"
           onChange={(e) => setContent(e.target.value)}
         />
         <div className="form-row">

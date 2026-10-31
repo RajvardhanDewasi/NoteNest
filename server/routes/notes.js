@@ -7,7 +7,7 @@ const router = express.Router();
 // Only allow known fields from the request body
 function pickFields(body) {
   const data = {};
-  ["title", "content", "color", "category"].forEach((key) => {
+  ["title", "content", "color", "category", "pinned", "archived"].forEach((key) => {
     if (body[key] !== undefined) data[key] = body[key];
   });
   return data;
@@ -21,6 +21,12 @@ function checkBody(data) {
   if (data.content !== undefined && typeof data.content !== "string") {
     return "Content must be text";
   }
+  if (data.pinned !== undefined && typeof data.pinned !== "boolean") {
+    return "Pinned must be true or false";
+  }
+  if (data.archived !== undefined && typeof data.archived !== "boolean") {
+    return "Archived must be true or false";
+  }
   return null;
 }
 
@@ -28,6 +34,11 @@ function checkBody(data) {
 router.get("/", async (req, res, next) => {
   try {
     const filter = {};
+    const view = ["archive", "trash", "pinned"].includes(req.query.view) ? req.query.view : "active";
+    if (view === "trash") filter.deletedAt = { $ne: null };
+    else if (view === "archive") { filter.deletedAt = null; filter.archived = true; }
+    else if (view === "pinned") { filter.deletedAt = null; filter.archived = false; filter.pinned = true; }
+    else { filter.deletedAt = null; filter.archived = false; }
     if (req.query.search) {
       const term = String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const regex = new RegExp(term, "i");
@@ -81,12 +92,46 @@ router.put("/:id", validateId, async (req, res, next) => {
   }
 });
 
-// DELETE /api/notes/:id
+// DELETE /api/notes/:id (move to trash; permanently delete when already in trash)
 router.delete("/:id", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findByIdAndDelete(req.params.id);
+    const current = await Note.findById(req.params.id);
+    if (!current) return res.status(404).json({ message: "Note not found" });
+    const note = current.deletedAt
+      ? await Note.findByIdAndDelete(req.params.id)
+      : await Note.findByIdAndUpdate(req.params.id, { deletedAt: new Date() }, { new: true });
     if (!note) return res.status(404).json({ message: "Note not found" });
-    res.json({ message: "Note deleted" });
+    res.json({ message: current.deletedAt ? "Note permanently deleted" : "Note moved to trash", note });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notes/:id/restore (restore a recently deleted note)
+router.post("/:id/restore", validateId, async (req, res, next) => {
+  try {
+    const data = req.body || {};
+    if (String(data._id) !== req.params.id) {
+      return res.status(400).json({ message: "Invalid note to restore" });
+    }
+    const existing = await Note.findById(req.params.id);
+    if (existing) {
+      existing.deletedAt = null;
+      await existing.save();
+      return res.json(existing);
+    }
+    const note = await Note.create({
+      _id: req.params.id,
+      title: data.title,
+      content: data.content,
+      color: data.color,
+      category: data.category,
+      pinned: Boolean(data.pinned),
+      archived: Boolean(data.archived),
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    });
+    res.status(201).json(note);
   } catch (err) {
     next(err);
   }
