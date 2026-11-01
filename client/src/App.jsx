@@ -61,6 +61,7 @@ export default function App() {
 
   /* ---------- screen state ---------- */
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const searchRef = useRef(null);
   const [editor, setEditor] = useState(null); // null = closed, { note } = open (note null = new)
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -85,7 +86,7 @@ export default function App() {
         event.preventDefault();
         searchRef.current?.focus();
       } else if (event.key === "Escape") {
-        if (editing) setEditing(null);
+        if (editor) setEditor(null);
         else if (deleting && !deleteBusy) setDeleting(null);
         else if (document.activeElement === searchRef.current && search) setSearch("");
       }
@@ -96,7 +97,7 @@ export default function App() {
     }
     window.addEventListener("keydown", handleKeys);
     return () => window.removeEventListener("keydown", handleKeys);
-  }, [editing, deleting, deleteBusy, search]);
+  }, [editor, deleting, deleteBusy, search]);
 
   // Wait briefly after typing before searching
   useEffect(() => {
@@ -191,9 +192,9 @@ export default function App() {
 
   async function handlePin(note) {
     try {
-      await updateNote(note._id, { ...note, pinned: !note.pinned });
+      await pinNote(note._id, !note.isPinned);
       await loadNotes();
-      showToast(note.pinned ? "Note unpinned." : "Note pinned.");
+      showToast(note.isPinned ? "Note unpinned." : "Note pinned.");
     } catch (err) {
       showToast(errorMessage(err), "error");
     }
@@ -201,7 +202,8 @@ export default function App() {
 
   async function handleArchive(note) {
     try {
-      await updateNote(note._id, { ...note, archived: view !== "archive" });
+      if (view === "archive") await unarchiveNote(note._id);
+      else await archiveNote(note._id);
       await loadNotes();
       showToast(view === "archive" ? "Note moved back to your notes." : "Note archived.");
     } catch (err) { showToast(errorMessage(err), "error"); }
@@ -209,7 +211,7 @@ export default function App() {
 
   async function handleRestore(note) {
     try {
-      await restoreNote(note);
+      await restoreNote(note._id);
       await loadNotes();
       showToast("Note restored.");
     } catch (err) { showToast(errorMessage(err), "error"); }
