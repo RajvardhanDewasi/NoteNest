@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { getNotes, createNote, updateNote, deleteNote, errorMessage } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getNotes, deleteNote, errorMessage } from "./api";
 import { CATEGORIES } from "./constants";
-import NoteForm from "./components/NoteForm";
 import NoteCard from "./components/NoteCard";
-import EditModal from "./components/EditModal";
+import NoteEditor from "./components/NoteEditor";
 import ConfirmDialog from "./components/ConfirmDialog";
 import Toast from "./components/Toast";
 
@@ -14,10 +13,11 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
-  const [editing, setEditing] = useState(null);
+  const [editor, setEditor] = useState(null); // null = closed, { note } = open (note null = new)
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [toast, setToast] = useState(null);
+  const requestId = useRef(0);
 
   function showToast(text, type = "success") {
     setToast({ text, type });
@@ -37,51 +37,38 @@ export default function App() {
   }, [search]);
 
   const loadNotes = useCallback(async () => {
-    setLoading(true);
+    // If a newer request starts, answers to older ones are ignored
+    const id = ++requestId.current;
     setLoadError("");
     try {
-      const data = await getNotes(debouncedSearch);
+      const data = await getNotes({
+        search: debouncedSearch,
+        category: categoryFilter === "All" ? "" : categoryFilter,
+      });
+      if (id !== requestId.current) return;
       setNotes(data);
     } catch (err) {
+      if (id !== requestId.current) return;
       setLoadError(errorMessage(err));
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, categoryFilter]);
 
   useEffect(() => {
     loadNotes();
   }, [loadNotes]);
 
-  async function handleCreate(data) {
-    try {
-      await createNote(data);
-      showToast("Note saved.");
-      await loadNotes();
-      return true;
-    } catch (err) {
-      showToast(errorMessage(err), "error");
-      return false;
-    }
-  }
-
-  async function handleUpdate(id, data) {
-    try {
-      await updateNote(id, data);
-      showToast("Changes saved.");
-      await loadNotes();
-      return true;
-    } catch (err) {
-      showToast(errorMessage(err), "error");
-      return false;
-    }
+  function handleEditorClose() {
+    setEditor(null);
+    loadNotes(); // show whatever was created or changed
   }
 
   async function handleDelete() {
     setDeleteBusy(true);
     try {
       await deleteNote(deleting._id);
-      showToast("Note deleted.");
+      showToast("Note moved to Trash.");
       setDeleting(null);
       await loadNotes();
     } catch (err) {
@@ -91,8 +78,6 @@ export default function App() {
     }
   }
 
-  const visibleNotes =
-    categoryFilter === "All" ? notes : notes.filter((n) => n.category === categoryFilter);
   const isFiltering = debouncedSearch !== "" || categoryFilter !== "All";
 
   return (
@@ -102,7 +87,7 @@ export default function App() {
         <input
           type="search"
           className="search"
-          placeholder="Search notes by title or description"
+          placeholder="Search notes by title, text or tag"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search notes"
@@ -110,7 +95,17 @@ export default function App() {
       </header>
 
       <main className="main">
-        <NoteForm onCreate={handleCreate} onError={(m) => showToast(m, "error")} />
+        <div className="note-form collapsed" onClick={() => setEditor({ note: null })}>
+          <input
+            type="text"
+            placeholder="Take a note..."
+            readOnly
+            aria-label="Create a note"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setEditor({ note: null });
+            }}
+          />
+        </div>
 
         <div className="filters">
           {["All", ...CATEGORIES].map((c) => (
@@ -129,11 +124,19 @@ export default function App() {
         {!loading && loadError && (
           <div className="status error-box">
             <p>{loadError}</p>
-            <button className="btn btn-primary" onClick={loadNotes}>Try again</button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setLoading(true);
+                loadNotes();
+              }}
+            >
+              Try again
+            </button>
           </div>
         )}
 
-        {!loading && !loadError && visibleNotes.length === 0 && (
+        {!loading && !loadError && notes.length === 0 && (
           <div className="status empty">
             <h2>{isFiltering ? "No matching notes" : "No notes yet"}</h2>
             <p>
@@ -144,27 +147,33 @@ export default function App() {
           </div>
         )}
 
-        {!loading && !loadError && visibleNotes.length > 0 && (
+        {!loading && !loadError && notes.length > 0 && (
           <section className="grid">
-            {visibleNotes.map((note) => (
-              <NoteCard key={note._id} note={note} onEdit={setEditing} onDelete={setDeleting} />
+            {notes.map((note) => (
+              <NoteCard
+                key={note._id}
+                note={note}
+                onEdit={(n) => setEditor({ note: n })}
+                onDelete={setDeleting}
+              />
             ))}
           </section>
         )}
       </main>
 
-      {editing && (
-        <EditModal
-          note={editing}
-          onSave={handleUpdate}
-          onClose={() => setEditing(null)}
-          onError={(m) => showToast(m, "error")}
+      {editor && (
+        <NoteEditor
+          key={editor.note ? editor.note._id : "new"}
+          note={editor.note}
+          onClose={handleEditorClose}
         />
       )}
 
       {deleting && (
         <ConfirmDialog
-          note={deleting}
+          title="Move this note to Trash?"
+          message={`\u201C${deleting.title}\u201D will be moved to Trash and deleted automatically after 30 days.`}
+          confirmLabel="Move to Trash"
           busy={deleteBusy}
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}

@@ -1,15 +1,28 @@
-export default function ConfirmDialog({ note, onConfirm, onCancel, busy }) {
+export default function ConfirmDialog({
+  title,
+  message,
+  confirmLabel = "Confirm",
+  busy = false,
+  onConfirm,
+  onCancel,
+}) {
   return (
     <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal confirm" onClick={(e) => e.stopPropagation()}>
-        <h2>Delete this note?</h2>
-        <p>
-          &ldquo;{note.title}&rdquo; will be permanently deleted. This cannot be undone.
-        </p>
+      <div
+        className="modal confirm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2>{title}</h2>
+        <p>{message}</p>
         <div className="form-actions">
-          <button className="btn btn-text" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-text" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
           <button className="btn btn-danger-solid" onClick={onConfirm} disabled={busy}>
-            {busy ? "Deleting..." : "Delete note"}
+            {busy ? "Working..." : confirmLabel}
           </button>
         </div>
       </div>

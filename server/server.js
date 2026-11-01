@@ -1,15 +1,27 @@
+const dns = require("node:dns");
+
+// Use public DNS servers so mongodb+srv:// (Atlas) addresses resolve reliably.
+// This is harmless with a local MongoDB.
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const notesRouter = require("./routes/notes");
+const Note = require("./models/Note");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-app.use(cors({ origin: ["http://localhost:5173", "http://127.0.0.1:5173"] }));
-app.use(express.json());
+const allowedOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
+if (process.env.CLIENT_ORIGIN) {
+  allowedOrigins.push(process.env.CLIENT_ORIGIN);
+}
+
+app.use(cors({ origin: allowedOrigins }));
+app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api/notes", notesRouter);
@@ -22,6 +34,9 @@ app.use((err, req, res, next) => {
   if (err.type === "entity.parse.failed") {
     return res.status(400).json({ message: "Invalid JSON in request body" });
   }
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ message: "Request is too large" });
+  }
   if (err.name === "ValidationError") {
     const message = Object.values(err.errors).map((e) => e.message).join(", ");
     return res.status(400).json({ message });
@@ -33,6 +48,33 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Something went wrong on the server" });
 });
 
+// One-time step: older notes have no plainText field, so search would miss them.
+// Runs on every start but does nothing once all notes are up to date.
+async function backfillPlainText() {
+  try {
+    const older = await Note.find({ plainText: { $exists: false } })
+      .select("_id content")
+      .lean();
+
+    if (older.length === 0) return;
+
+    const operations = older.map((note) => ({
+      updateOne: {
+        filter: { _id: note._id },
+        update: {
+          $set: { plainText: String(note.content || "").replace(/\s+/g, " ").trim() },
+        },
+      },
+    }));
+
+    // timestamps:false so this does not change every note's "updated" date
+    await Note.bulkWrite(operations, { timestamps: false });
+    console.log(`Prepared ${older.length} older note(s) for search`);
+  } catch (err) {
+    console.error("Could not prepare older notes for search:", err.message);
+  }
+}
+
 async function start() {
   if (!MONGODB_URI) {
     console.error("MONGODB_URI is missing. Copy .env.example to .env and try again.");
@@ -41,6 +83,7 @@ async function start() {
   try {
     await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
     console.log("Connected to MongoDB");
+    await backfillPlainText();
     app.listen(PORT, () => console.log(`NoteNest API running on http://localhost:${PORT}`));
   } catch (err) {
     console.error("Could not connect to MongoDB:", err.message);
