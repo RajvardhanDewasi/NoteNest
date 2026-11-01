@@ -182,7 +182,10 @@ export default function NoteEditor({ note, onClose }) {
     >
       <div
         className="modal editor-modal"
-        style={{ background: color }}
+        style={{
+          "--note-accent":
+            color && color !== "#ffffff" ? color : "#c7d6cb",
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={note ? "Edit note" : "New note"}

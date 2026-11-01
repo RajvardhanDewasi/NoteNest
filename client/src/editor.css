@@ -1,3 +1,4 @@
+
 /* =====================================================================
    Phase 2 styles: note editor, checklist, tags, cards
    Imported in main.jsx AFTER index.css so these rules win ties.
@@ -22,7 +23,15 @@
 }
 .icon-btn:hover { background: rgba(0, 0, 0, 0.08); color: var(--text); }
 
-.type-toggle { display: inline-flex; align-items: center; gap: 8px; width: fit-content; cursor: pointer; font-size: 0.95rem; }
+.type-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
 .editor-modal input[type="checkbox"] {
   width: 18px;
   height: 18px;
@@ -43,6 +52,7 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.55);
 }
+
 .tool {
   min-width: 34px;
   height: 32px;
@@ -53,12 +63,24 @@
   cursor: pointer;
   font-size: 0.9rem;
 }
+
 .tool:hover { background: rgba(0, 0, 0, 0.08); }
 .tool.active { background: var(--accent); color: #fff; }
-.tool-divider { width: 1px; height: 20px; background: rgba(0, 0, 0, 0.15); margin: 0 4px; }
+
+.tool-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.15);
+  margin: 0 4px;
+}
 
 /* ---------- Rich text area ---------- */
-.rte-wrap { display: flex; flex-direction: column; gap: 8px; }
+.rte-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .rte {
   position: relative;
   min-height: 180px;
@@ -69,6 +91,7 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+
 .rte.is-empty::before {
   content: attr(data-placeholder);
   position: absolute;
@@ -77,34 +100,103 @@
   color: var(--muted);
   pointer-events: none;
 }
+
 .rte p { margin: 0 0 0.5em; }
 .rte h1 { font-size: 1.5rem; margin: 0.4em 0 0.3em; }
 .rte h2 { font-size: 1.25rem; margin: 0.4em 0 0.3em; }
 .rte h3 { font-size: 1.1rem; margin: 0.4em 0 0.3em; }
-.rte ul, .rte ol { margin: 0.3em 0; padding-left: 1.6rem; }
+
+.rte ul,
+.rte ol {
+  margin: 0.3em 0;
+  padding-left: 1.6rem;
+}
 
 /* ---------- Checklist ---------- */
-.checklist { display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
-.checklist-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.checklist-items li { display: flex; align-items: center; gap: 10px; }
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+}
+
+.checklist-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checklist-items li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .checklist-items .checklist-text {
   flex: 1;
   min-width: 0;
   padding: 6px 0;
   border-bottom: 1px solid transparent;
 }
-.checklist-items .checklist-text:focus { border-bottom-color: rgba(0, 0, 0, 0.25); }
-.checklist-items li.done .checklist-text { text-decoration: line-through; color: var(--muted); }
-.add-item { width: fit-content; color: var(--accent-dark); }
 
-.checklist-progress { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
-.progress-track { flex: 1; height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.12); overflow: hidden; }
-.progress-fill { height: 100%; background: var(--accent); transition: width 0.25s ease; }
+.checklist-items .checklist-text:focus {
+  border-bottom-color: rgba(0, 0, 0, 0.25);
+}
+
+.checklist-items li.done .checklist-text {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.add-item {
+  width: fit-content;
+  color: var(--accent-dark);
+}
+
+.checklist-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.progress-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
 
 /* ---------- Fields under the text ---------- */
-.meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
-.field > span:first-child { color: var(--muted); font-weight: 600; }
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.field > span:first-child {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .editor-modal .field-input {
   width: auto;
   padding: 6px 10px;
@@ -112,12 +204,31 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.7);
 }
-.editor-modal .field-input:focus { outline: 2px solid var(--accent); }
-.reminder-row { display: flex; align-items: center; gap: 8px; }
-.field-hint { color: var(--danger); font-size: 0.8rem; }
+
+.editor-modal .field-input:focus {
+  outline: 2px solid var(--accent);
+}
+
+.reminder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-hint {
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
 .editor-modal .color-picker { flex-wrap: wrap; }
 
-.tag-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tag-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .tag-chip {
   display: inline-flex;
   align-items: center;
@@ -127,8 +238,18 @@
   background: rgba(0, 0, 0, 0.09);
   font-size: 0.85rem;
 }
-.tag-chip button { border: none; background: transparent; cursor: pointer; font-size: 1rem; line-height: 1; color: var(--muted); }
+
+.tag-chip button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--muted);
+}
+
 .tag-chip button:hover { color: var(--text); }
+
 .editor-modal .tag-input { flex: 1; min-width: 150px; }
 
 /* ---------- Footer: save status and counts ---------- */
@@ -141,28 +262,100 @@
   padding-top: 8px;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
-.editor-status { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.85rem; color: var(--muted); }
+
+.editor-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .save-state { font-weight: 600; }
 .save-state.saved { color: var(--accent-dark); }
-.save-state.saving, .save-state.unsaved { color: var(--muted); }
-.save-state.error, .save-state.needs-title { color: var(--danger); }
+.save-state.saving,
+.save-state.unsaved { color: var(--muted); }
+
+.save-state.error,
+.save-state.needs-title { color: var(--danger); }
+
 .save-error { color: var(--danger); }
 .counts { white-space: nowrap; }
 
 /* ---------- Note cards ---------- */
-.note-card { cursor: pointer; transition: box-shadow 0.15s ease, transform 0.15s ease; }
-.note-card:hover { transform: translateY(-2px); box-shadow: 0 2px 6px rgba(31, 42, 46, 0.16), 0 8px 20px rgba(31, 42, 46, 0.1); }
-.card-checklist { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.card-checklist ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; color: #3b484d; }
+.note-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.note-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 6px rgba(31, 42, 46, 0.16),
+    0 8px 20px rgba(31, 42, 46, 0.1);
+}
+
+.card-checklist {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-checklist ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #3b484d;
+}
+
 .card-checklist li { overflow-wrap: anywhere; }
-.card-checklist li.done { text-decoration: line-through; color: var(--muted); }
-.card-checklist .more { margin: 0; font-size: 0.8rem; color: var(--muted); }
-.hashtags { display: flex; flex-wrap: wrap; gap: 4px; }
-.hashtag { font-size: 0.78rem; color: var(--accent-dark); background: rgba(255, 255, 255, 0.6); padding: 1px 8px; border-radius: 999px; }
+
+.card-checklist li.done {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.card-checklist .more {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hashtag {
+  font-size: 0.78rem;
+  color: var(--accent-dark);
+  background: rgba(255, 255, 255, 0.6);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
 
 /* ---------- Small screens ---------- */
 @media (max-width: 600px) {
-  .modal-backdrop { padding: 0; align-items: stretch; }
-  .editor-modal { max-width: none; max-height: none; height: 100%; border-radius: 0; }
-  .rte { max-height: 30vh; min-height: 140px; }
+  .modal-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .editor-modal {
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .rte {
+    max-height: 30vh;
+    min-height: 140px;
+  }
 }

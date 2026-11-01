@@ -244,3 +244,678 @@
   .grid.list .card-main { flex: 1 1 60%; }
   .grid.list .card-side { flex: 1 1 100%; justify-content: space-between; }
 }
+
+/* ==========================================
+   NOTENEST - PREMIUM UI ENHANCEMENT
+   ========================================== */
+
+:root {
+  --accent: #34765a;
+  --accent-dark: #245b45;
+  --text: #202821;
+  --muted: #78847b;
+  --border: #e5ebe5;
+  --bg: #f4f7f4;
+  --surface: #ffffff;
+}
+
+/* Main background */
+body,
+.app-shell {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ========== TOP NAVBAR ========== */
+
+.topbar {
+  height: 72px;
+  padding: 0 clamp(18px, 4vw, 52px);
+  gap: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 3px 15px rgba(30, 60, 40, 0.025);
+}
+
+.brand {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: var(--text);
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #438568, #245b45);
+  box-shadow: 0 5px 14px rgba(52, 118, 90, 0.2);
+}
+
+.topbar .search {
+  height: 44px;
+  padding: 0 16px;
+  max-width: 560px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: #f3f6f3;
+  transition: all 0.25s ease;
+}
+
+.topbar .search:focus {
+  background: white;
+  border-color: #a9c9b4;
+  box-shadow: 0 0 0 4px rgba(52, 118, 90, 0.09);
+}
+
+.sort-select,
+.filter-select {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: white;
+  color: var(--text);
+}
+
+/* ========== PAGE LAYOUT ========== */
+
+.shell {
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.content {
+  width: 100%;
+  max-width: 1250px;
+  padding: 36px clamp(20px, 4vw, 54px) 90px;
+}
+
+/* ========== SIDEBAR ========== */
+
+.sidebar {
+  padding: 24px 16px;
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nav-item {
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #68756b;
+  transition: all 0.22s ease;
+}
+
+.nav-item:hover {
+  background: #f1f6f2;
+  color: var(--accent);
+  transform: translateX(3px);
+}
+
+.nav-item.active {
+  color: var(--accent-dark);
+  background: #eaf3ed;
+  font-weight: 700;
+}
+
+.nav-count {
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #f0f4f0;
+  color: #68756b;
+  font-size: 0.75rem;
+}
+
+.nav-heading {
+  margin-top: 28px;
+  margin-bottom: 10px;
+  font-size: 0.7rem;
+  letter-spacing: 1.3px;
+}
+
+/* ========== WELCOME WIDGET ========== */
+
+.welcome {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 25px;
+  padding: 29px 32px;
+  border: 1px solid #e3eee5;
+  border-radius: 22px;
+  background: linear-gradient(
+    120deg,
+    #eaf4ed,
+    #f5f8f4 65%,
+    #edf4ef
+  );
+}
+
+.welcome > * {
+  position: relative;
+  z-index: 1;
+}
+
+.welcome::after {
+  content: "";
+  position: absolute;
+  top: -65px;
+  right: 50px;
+  width: 210px;
+  height: 210px;
+  border-radius: 50%;
+  background: rgba(91, 151, 112, 0.09);
+  box-shadow: 0 0 0 30px rgba(91, 151, 112, 0.035);
+}
+
+.welcome h2 {
+  margin: 0 0 6px;
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #244e38;
+}
+
+.welcome p {
+  margin: 0;
+  color: #718176;
+  font-size: 0.92rem;
+}
+
+/* ========== QUICK CREATE NOTE ========== */
+
+.content .note-form.collapsed {
+  width: min(720px, 100%);
+  max-width: 720px;
+  min-height: 62px;
+  margin: 0 0 26px;
+  padding: 0 21px;
+  border: 1px solid #e4ebe4;
+  border-radius: 15px;
+  background: white;
+  box-shadow: 0 5px 20px rgba(35, 70, 45, 0.045);
+  transition: all 0.25s ease;
+}
+
+.content .note-form.collapsed:hover {
+  transform: translateY(-2px);
+  border-color: #b9d2c0;
+  box-shadow: 0 10px 25px rgba(35, 70, 45, 0.085);
+}
+
+.note-form.collapsed input {
+  font-size: 0.95rem;
+}
+
+/* ========== FILTER WIDGETS ========== */
+
+.filter-bar {
+  gap: 15px;
+  margin-bottom: 28px;
+}
+
+.chip-row {
+  gap: 9px;
+}
+
+.chip {
+  min-height: 37px;
+  padding: 7px 17px;
+  border: 1px solid #e7ece7;
+  border-radius: 30px;
+  background: white;
+  color: #69776d;
+  font-size: 0.82rem;
+  transition: all 0.2s ease;
+}
+
+.chip:hover {
+  background: #edf5ef;
+  border-color: #d2e3d6;
+  color: var(--accent);
+}
+
+.chip.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(52, 118, 90, 0.17);
+}
+
+.filter-row {
+  gap: 12px;
+  font-size: 0.83rem;
+}
+
+/* ========== NOTE SECTION ========== */
+
+.note-section {
+  margin-bottom: 36px;
+}
+
+.section-title {
+  margin-bottom: 19px;
+  color: #46554a;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  text-transform: none;
+}
+
+.section-count {
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #e7eee8;
+  color: #54745d;
+  font-size: 0.75rem;
+}
+
+/* ========== NOTE CARDS ========== */
+
+.grid {
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 19px;
+}
+
+.note-card {
+  min-height: 225px;
+  padding: 23px;
+  border: 1px solid rgba(54, 88, 62, 0.10);
+  border-radius: 19px;
+  background: var(--note-card-color, white) !important;
+  box-shadow: 0 4px 15px rgba(31, 58, 37, 0.045);
+  transition: transform 0.25s ease,
+              box-shadow 0.25s ease,
+              border-color 0.25s ease;
+}
+
+.note-card::before {
+  top: 20px;
+  bottom: 20px;
+  width: 4px;
+  border-radius: 0 5px 5px 0;
+  background: var(--note-accent, #d2e4d7);
+}
+
+.note-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(52, 118, 90, 0.25);
+  box-shadow: 0 14px 30px rgba(31, 58, 37, 0.10);
+}
+
+.card-main h3 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.35px;
+}
+
+.preview {
+  color: #647168;
+  font-size: 0.87rem;
+  line-height: 1.75;
+}
+
+.tag {
+  padding: 5px 10px;
+  border: 1px solid rgba(52, 90, 60, 0.08);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #4e6655;
+  font-size: 0.73rem;
+}
+
+.date {
+  color: #849087;
+  font-size: 0.72rem;
+}
+
+.hashtag {
+  padding: 3px 9px;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #52715b;
+  font-size: 0.73rem;
+}
+
+.pin-btn {
+  opacity: 0.65;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.pin-btn:hover {
+  background: rgba(52, 118, 90, 0.12);
+  color: var(--accent);
+  transform: rotate(-8deg);
+}
+
+.pin-btn.pinned {
+  color: var(--accent-dark);
+  opacity: 1;
+}
+
+/* ========== CARD ACTIONS ========== */
+
+.card-actions {
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s ease;
+}
+
+.note-card:hover .card-actions,
+.note-card:focus-within .card-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card-actions .btn {
+  min-height: 35px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  font-size: 0.77rem;
+}
+
+.card-actions .btn-small {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.card-actions .btn-danger:hover {
+  background: #fff0ed;
+}
+
+/* ========== LOADING / EMPTY STATES ========== */
+
+.status {
+  padding: 75px 20px;
+  border: 1px dashed #dce6dd;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.status h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+/* ========== DARK MODE SUPPORT ========== */
+
+:root[data-theme="dark"] {
+  --accent: #82c5a0;
+  --accent-dark: #a1d8b5;
+  --text: #e8eee9;
+  --muted: #a7b4aa;
+  --border: #303d33;
+  --bg: #141c16;
+  --surface: #1d291f;
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app-shell {
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .sidebar {
+  background: #1b281e;
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .brand {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .welcome {
+  background: linear-gradient(120deg, #20382a, #1d2c22);
+  border-color: #344c39;
+}
+
+:root[data-theme="dark"] .welcome h2 {
+  color: #d2edda;
+}
+
+:root[data-theme="dark"] .welcome p {
+  color: #a8bcae;
+}
+
+:root[data-theme="dark"] .content .note-form.collapsed,
+:root[data-theme="dark"] .topbar .search,
+:root[data-theme="dark"] .sort-select,
+:root[data-theme="dark"] .filter-select {
+  background: #202e23;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .nav-item {
+  color: #c0cec2;
+}
+
+:root[data-theme="dark"] .nav-item.active {
+  background: #2a4231;
+  color: #a8dfba;
+}
+
+:root[data-theme="dark"] .chip {
+  background: #202e23;
+  border-color: var(--border);
+  color: #c0cec2;
+}
+
+:root[data-theme="dark"] .chip.active {
+  background: var(--accent);
+  color: #17251b;
+}
+
+:root[data-theme="dark"] .note-card {
+  background: #202d23 !important;
+  border-color: #344638;
+}
+
+:root[data-theme="dark"] .preview,
+:root[data-theme="dark"] .date {
+  color: #b7c4b9;
+}
+
+/* ========== RESPONSIVE POLISH ========== */
+
+@media (max-width: 900px) {
+  .content {
+    padding: 26px 20px 75px;
+  }
+
+  .welcome {
+    padding: 25px;
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    gap: 9px;
+  }
+
+  .content {
+    padding: 22px 15px 65px;
+  }
+
+  .welcome {
+    padding: 22px;
+    border-radius: 17px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .note-card {
+    min-height: 190px;
+    padding: 20px;
+  }
+
+  .card-actions {
+    opacity: 1;
+    transform: none;
+  }
+
+  .filter-row {
+    gap: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-card,
+  .nav-item,
+  .chip,
+  .btn,
+  .search {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* =====================================
+   NOTENEST - PREMIUM NOTE CARD DESIGN
+   ===================================== */
+
+.note-card {
+  border: 1px solid #e6ece6;
+  border-radius: 20px;
+  box-shadow: 0 5px 18px rgba(35, 61, 42, 0.045);
+  transition:
+    transform 240ms cubic-bezier(.2, .75, .25, 1),
+    box-shadow 240ms ease,
+    border-color 240ms ease;
+}
+
+.note-card::before {
+  left: 0;
+  top: 20px;
+  bottom: 20px;
+  width: 4px;
+  border-radius: 0 6px 6px 0;
+  background: var(--note-accent, #c7d6cb);
+}
+
+.note-card:hover {
+  transform: translateY(-5px);
+  border-color: #d4e2d7;
+  box-shadow: 0 15px 32px rgba(35, 61, 42, 0.10);
+}
+
+.note-card h3 {
+  color: #26372b;
+  font-size: 1.06rem;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.5;
+}
+
+.note-card .preview {
+  color: #657168;
+  font-size: 0.88rem;
+  line-height: 1.8;
+}
+
+.note-card .card-meta {
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.note-card .tag {
+  padding: 5px 11px;
+  border: 1px solid #e5ece5;
+  border-radius: 30px;
+  background: #f4f8f4;
+  color: #45634e;
+  font-size: 0.74rem;
+}
+
+.note-card .date {
+  color: #8a958c;
+  font-size: 0.72rem;
+}
+
+.note-card .hashtag {
+  padding: 4px 10px;
+  border: 1px solid #e4ede5;
+  border-radius: 30px;
+  background: #f1f6f1;
+  color: #50715a;
+  font-size: 0.74rem;
+}
+
+.note-card .hashtags {
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.note-card .pin-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: transparent;
+}
+
+.note-card .pin-btn:hover {
+  background: #edf5ef;
+  color: #34765a;
+}
+
+.note-card .card-actions .btn {
+  border-radius: 9px;
+  font-weight: 600;
+}
+
+.note-card .card-checklist ul {
+  gap: 7px;
+  color: #536258;
+}
+
+.note-card .card-checklist .checklist-progress {
+  margin-top: 9px;
+}
+
+.note-card .progress-track {
+  height: 7px;
+  background: #e9efe9;
+  border-radius: 20px;
+}
+
+.note-card .progress-fill {
+  border-radius: 20px;
+}
+
+/* Dark theme */
+:root[data-theme="dark"] .note-card h3 {
+  color: #e5eee7;
+}
+
+:root[data-theme="dark"] .note-card .preview {
+  color: #b7c4b9;
+}
+
+:root[data-theme="dark"] .note-card .tag,
+:root[data-theme="dark"] .note-card .hashtag {
+  color: #c2dfca;
+  background: #29392e;
+  border-color: #3b4c3e;
+}
+
+:root[data-theme="dark"] .note-card .pin-btn:hover {
+  background: #304435;
+}

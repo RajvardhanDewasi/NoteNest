@@ -34,7 +34,16 @@ export default function NoteCard({ note, onEdit, onDelete, onTogglePin }) {
   const preview = text.length > 180 ? text.slice(0, 180).trimEnd() + "..." : text;
 
   return (
-    <article className="note-card" style={{ background: note.color }} onClick={() => onEdit(note)}>
+    <article
+      className="note-card"
+      style={{
+        "--note-accent":
+          note.color && note.color !== "#ffffff"
+            ? note.color
+            : "#c7d6cb",
+      }}
+      onClick={() => onEdit(note)}
+    >
       <button
         type="button"
         className={`pin-btn ${note.isPinned ? "pinned" : ""}`}
