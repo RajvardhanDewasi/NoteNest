@@ -919,3 +919,77 @@ body,
 :root[data-theme="dark"] .note-card .pin-btn:hover {
   background: #304435;
 }
+
+/* ===================================
+   NOTENEST - TRASH PAGE
+   =================================== */
+
+.trash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding: 25px 28px;
+  border: 1px solid #e6ebe5;
+  border-radius: 18px;
+  background: linear-gradient(120deg, #f0f4f0, #fafbf9);
+}
+
+.trash-header h2 {
+  margin: 0 0 7px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.trash-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.trash-total {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border-radius: 30px;
+  background: #e4ece5;
+  color: #45634d;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.trash-card {
+  cursor: default;
+}
+
+.trash-card .card-actions {
+  opacity: 1;
+  transform: none;
+}
+
+.trash-card .btn-danger:hover {
+  background: #fff0ed;
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .trash-header {
+  background: linear-gradient(120deg, #203027, #26342a);
+  border-color: #394a3d;
+}
+
+:root[data-theme="dark"] .trash-total {
+  background: #354638;
+  color: #c3e2ca;
+}
+
+@media (max-width: 600px) {
+  .trash-header {
+    padding: 20px;
+  }
+
+  .trash-header h2 {
+    font-size: 1.35rem;
+  }
+}

@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getNotes,
@@ -5,6 +6,10 @@ import {
   getTags,
   deleteNote,
   pinNote,
+  archiveNote,
+  unarchiveNote,
+  restoreNote,
+  permanentDeleteNote,
   errorMessage,
 } from "./api";
 import { CATEGORIES, SORT_OPTIONS } from "./constants";
@@ -24,11 +29,11 @@ function greeting() {
   return "Good evening";
 }
 
-// "Work" and "work" are the same tag for filtering, so list it once
+// "Work" and "work" are the same tag for filtering, so list it once.
 function uniqueTags(tags) {
   const seen = new Set();
-  return tags.filter((t) => {
-    const key = t.toLowerCase();
+  return tags.filter((tag) => {
+    const key = tag.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -40,12 +45,12 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [counts, setCounts] = useState(null);
   const [allTags, setAllTags] = useState([]);
-  const [loading, setLoading] = useState(true); // first load only
-  const [fetching, setFetching] = useState(false); // later reloads (dims the list)
+  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   /* ---------- what the user is looking at ---------- */
-  const [view, setView] = useState("all"); // "all" | "pinned"
+  const [view, setView] = useState("all"); // "all" | "pinned" | "trash"
   const [category, setCategory] = useState("");
   const [tag, setTag] = useState("");
   const [pinnedOnly, setPinnedOnly] = useState(false);
@@ -53,18 +58,22 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Remembered between visits
+  // Remembered between visits.
   const [savedSort, setSort] = usePersistentState("notenest:sort", "updated");
   const [savedLayout, setLayout] = usePersistentState("notenest:layout", "grid");
-  const sort = SORT_OPTIONS.some((o) => o.value === savedSort) ? savedSort : "updated";
+  const sort = SORT_OPTIONS.some((option) => option.value === savedSort)
+    ? savedSort
+    : "updated";
   const layout = savedLayout === "list" ? "list" : "grid";
 
   /* ---------- screen state ---------- */
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchRef = useRef(null);
-  const [editor, setEditor] = useState(null); // null = closed, { note } = open (note null = new)
+  const [editor, setEditor] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [permanentlyDeleting, setPermanentlyDeleting] = useState(null);
+  const [permanentDeleteBusy, setPermanentDeleteBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const requestId = useRef(0);
 
@@ -74,46 +83,69 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), toast.action ? 8000 : 3500);
-    return () => clearTimeout(t);
+
+    const timeout = setTimeout(
+      () => setToast(null),
+      toast.action ? 8000 : 3500
+    );
+
+    return () => clearTimeout(timeout);
   }, [toast]);
 
+  // Global keyboard shortcuts and Escape handling.
   useEffect(() => {
     function handleKeys(event) {
       const target = event.target;
-      const typing = target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+      const typing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         searchRef.current?.focus();
       } else if (event.key === "Escape") {
         if (editor) setEditor(null);
         else if (deleting && !deleteBusy) setDeleting(null);
-        else if (document.activeElement === searchRef.current && search) setSearch("");
+        else if (permanentlyDeleting && !permanentDeleteBusy) {
+          setPermanentlyDeleting(null);
+        } else if (document.activeElement === searchRef.current && search) {
+          setSearch("");
+        }
       }
+
       if (!typing && event.key === "/") {
         event.preventDefault();
         searchRef.current?.focus();
       }
     }
+
     window.addEventListener("keydown", handleKeys);
     return () => window.removeEventListener("keydown", handleKeys);
-  }, [editor, deleting, deleteBusy, search]);
+  }, [
+    editor,
+    deleting,
+    deleteBusy,
+    permanentlyDeleting,
+    permanentDeleteBusy,
+    search,
+  ]);
 
-  // Wait briefly after typing before searching
+  // Wait briefly after typing before searching.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(t);
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
   }, [search]);
 
   /* ---------- loading ---------- */
 
-  // quiet = true reloads without dimming the list (used after pin, edit, delete)
   const loadNotes = useCallback(
     async (quiet = false) => {
-      // If a newer request starts, answers to older ones are ignored
+      // Ignore responses from older requests if a newer request has started.
       const id = ++requestId.current;
       setLoadError("");
       if (!quiet) setFetching(true);
+
       try {
         const data = await getNotes({
           view,
@@ -124,6 +156,7 @@ export default function App() {
           updatedWithin,
           sort,
         });
+
         if (id !== requestId.current) return;
         setNotes(data);
       } catch (err) {
@@ -143,14 +176,14 @@ export default function App() {
     loadNotes();
   }, [loadNotes]);
 
-  // Sidebar numbers and the list of tags
+  // Sidebar counts and the list of tags.
   const loadMeta = useCallback(async () => {
     try {
       const [countData, tagData] = await Promise.all([getCounts(), getTags()]);
       setCounts(countData);
       setAllTags(uniqueTags(tagData));
     } catch {
-      // These are extras. The main list shows its own error if the server is down.
+      // The main notes list displays its own error if the server is unavailable.
     }
   }, []);
 
@@ -158,9 +191,12 @@ export default function App() {
     loadMeta();
   }, [loadMeta]);
 
-  // If the selected tag no longer exists on any note, stop filtering by it
+  // If a selected tag no longer exists, stop filtering by it.
   useEffect(() => {
-    if (tag && !allTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+    if (
+      tag &&
+      !allTags.some((item) => item.toLowerCase() === tag.toLowerCase())
+    ) {
       setTag("");
     }
   }, [allTags]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -174,15 +210,19 @@ export default function App() {
 
   function handleEditorClose() {
     setEditor(null);
-    refreshAll(); // show whatever was created or changed
+    refreshAll();
   }
 
   async function handleTogglePin(note) {
     const wantPinned = !note.isPinned;
+
     try {
       const updated = await pinNote(note._id, wantPinned);
-      // Update the card straight away, then fetch the properly ordered list
-      setNotes((prev) => prev.map((n) => (n._id === updated._id ? updated : n)));
+
+      setNotes((previous) =>
+        previous.map((item) => (item._id === updated._id ? updated : item))
+      );
+
       showToast(updated.isPinned ? "Note pinned." : "Note unpinned.");
       refreshAll();
     } catch (err) {
@@ -190,35 +230,38 @@ export default function App() {
     }
   }
 
-  async function handlePin(note) {
+  // Kept available for the archive action used elsewhere in the app.
+  async function handleArchive(note) {
     try {
-      await pinNote(note._id, !note.isPinned);
-      await loadNotes();
-      showToast(note.isPinned ? "Note unpinned." : "Note pinned.");
+      if (view === "archive") await unarchiveNote(note._id);
+      else await archiveNote(note._id);
+
+      refreshAll();
+      showToast(
+        view === "archive"
+          ? "Note moved back to your notes."
+          : "Note archived."
+      );
     } catch (err) {
       showToast(errorMessage(err), "error");
     }
   }
 
-  async function handleArchive(note) {
-    try {
-      if (view === "archive") await unarchiveNote(note._id);
-      else await archiveNote(note._id);
-      await loadNotes();
-      showToast(view === "archive" ? "Note moved back to your notes." : "Note archived.");
-    } catch (err) { showToast(errorMessage(err), "error"); }
-  }
-
   async function handleRestore(note) {
     try {
       await restoreNote(note._id);
-      await loadNotes();
-      showToast("Note restored.");
-    } catch (err) { showToast(errorMessage(err), "error"); }
+      showToast("Note restored to All Notes.");
+      refreshAll();
+    } catch (err) {
+      showToast(errorMessage(err), "error");
+    }
   }
 
   async function handleDelete() {
+    if (!deleting) return;
+
     setDeleteBusy(true);
+
     try {
       await deleteNote(deleting._id);
       showToast("Note moved to Trash.");
@@ -231,10 +274,31 @@ export default function App() {
     }
   }
 
-  function handleNavSelect(nextView, nextCategory) {
+  async function handlePermanentDelete() {
+    if (!permanentlyDeleting) return;
+
+    setPermanentDeleteBusy(true);
+
+    try {
+      await permanentDeleteNote(permanentlyDeleting._id);
+      setPermanentlyDeleting(null);
+      showToast("Note permanently deleted.");
+      refreshAll();
+    } catch (err) {
+      showToast(errorMessage(err), "error");
+    } finally {
+      setPermanentDeleteBusy(false);
+    }
+  }
+
+  function handleNavSelect(nextView, nextCategory = "") {
     setView(nextView);
     setCategory(nextCategory);
+    setTag("");
     setPinnedOnly(false);
+    setUpdatedWithin("");
+
+    // Keep the search term so it can search within the newly selected view.
   }
 
   function clearFilters() {
@@ -249,28 +313,48 @@ export default function App() {
   /* ---------- what to show ---------- */
 
   const isFiltering =
-    debouncedSearch !== "" || category !== "" || tag !== "" || pinnedOnly || updatedWithin !== "";
+    debouncedSearch !== "" ||
+    category !== "" ||
+    tag !== "" ||
+    pinnedOnly ||
+    updatedWithin !== "";
 
-  const pinnedNotes = notes.filter((n) => n.isPinned);
-  const otherNotes = notes.filter((n) => !n.isPinned);
-  // On the main list, pinned notes get their own section above the rest
-  const splitSections = view === "all" && !pinnedOnly && pinnedNotes.length > 0;
+  const pinnedNotes = notes.filter((note) => note.isPinned);
+  const otherNotes = notes.filter((note) => !note.isPinned);
+
+  // Pinned notes get their own section above the rest on the main dashboard.
+  const splitSections =
+    view === "all" && !pinnedOnly && pinnedNotes.length > 0;
 
   const sectionProps = {
     layout,
     dim: fetching,
+    isTrash: view === "trash",
     onEdit: (note) => setEditor({ note }),
     onDelete: setDeleting,
     onTogglePin: handleTogglePin,
+    onRestore: handleRestore,
+    onPermanentDelete: setPermanentlyDeleting,
   };
 
   let singleTitle = "All notes";
-  if (view === "pinned") singleTitle = "Pinned notes";
+
+  if (view === "trash") singleTitle = "Trash";
+  else if (view === "pinned") singleTitle = "Pinned notes";
   else if (isFiltering) singleTitle = "Results";
 
   let emptyTitle = "No notes yet";
-  let emptyText = "Click \u201CAdd note\u201D to write your first one.";
-  if (isFiltering) {
+  let emptyText = "Click ‘Take a note’ to write your first one.";
+
+  if (view === "trash") {
+    emptyTitle = isFiltering
+      ? "No matching deleted notes"
+      : "Your Trash is empty";
+
+    emptyText = isFiltering
+      ? "Try another search or clear the search field."
+      : "Notes you delete will stay here for 30 days before being permanently deleted.";
+  } else if (isFiltering) {
     emptyTitle = "No matching notes";
     emptyText = "Try a different search or filter.";
   } else if (view === "pinned") {
@@ -309,46 +393,106 @@ export default function App() {
               <h2>{greeting()}</h2>
               <p>
                 {counts
-                  ? `You have ${counts.all} ${counts.all === 1 ? "note" : "notes"}, ${counts.pinned} pinned.`
+                  ? `You have ${counts.all} ${
+                      counts.all === 1 ? "note" : "notes"
+                    }, ${counts.pinned} pinned.`
                   : "Welcome to NoteNest."}
               </p>
             </section>
           )}
 
-          <div className="note-form collapsed" onClick={() => setEditor({ note: null })}>
-            <input
-              type="text"
-              placeholder="Take a note..."
-              readOnly
-              aria-label="Create a note"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") setEditor({ note: null });
+          {view === "trash" && (
+            <section
+              className="trash-header"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "16px",
+                marginBottom: "26px",
+                padding: "22px 26px",
+                border: "1px solid var(--line)",
+                borderRadius: "18px",
+                background: "var(--line)",
               }}
-            />
-          </div>
+            >
+              <div>
+                <h2 style={{ margin: "0 0 5px", fontSize: "1.45rem" }}>
+                  Trash
+                </h2>
 
-          <FilterBar
-            categories={CATEGORIES}
-            category={category}
-            onCategory={setCategory}
-            tags={allTags}
-            tag={tag}
-            onTag={setTag}
-            updatedWithin={updatedWithin}
-            onUpdatedWithin={setUpdatedWithin}
-            pinnedOnly={pinnedOnly}
-            onPinnedOnly={setPinnedOnly}
-            showPinnedToggle={view === "all"}
-            isFiltering={isFiltering}
-            onClear={clearFilters}
-          />
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--muted)",
+                    fontSize: ".9rem",
+                  }}
+                >
+                  Deleted notes are kept for 30 days before permanent deletion.
+                </p>
+              </div>
+
+              <span
+                className="trash-total"
+                style={{
+                  flexShrink: 0,
+                  padding: "6px 12px",
+                  borderRadius: "999px",
+                  background: "var(--bg)",
+                  color: "var(--muted)",
+                  fontSize: ".82rem",
+                  fontWeight: 700,
+                }}
+              >
+                {counts?.trash ?? notes.length}{" "}
+                {counts?.trash === 1 ? "item" : "items"}
+              </span>
+            </section>
+          )}
+
+          {view !== "trash" && (
+            <div
+              className="note-form collapsed"
+              onClick={() => setEditor({ note: null })}
+            >
+              <input
+                type="text"
+                placeholder="Take a note..."
+                readOnly
+                aria-label="Create a note"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") setEditor({ note: null });
+                }}
+              />
+            </div>
+          )}
+
+          {view !== "trash" && (
+            <FilterBar
+              categories={CATEGORIES}
+              category={category}
+              onCategory={setCategory}
+              tags={allTags}
+              tag={tag}
+              onTag={setTag}
+              updatedWithin={updatedWithin}
+              onUpdatedWithin={setUpdatedWithin}
+              pinnedOnly={pinnedOnly}
+              onPinnedOnly={setPinnedOnly}
+              showPinnedToggle={view === "all"}
+              isFiltering={isFiltering}
+              onClear={clearFilters}
+            />
+          )}
 
           {loading && <p className="status">Loading notes...</p>}
 
           {!loading && loadError && (
             <div className="status error-box">
               <p>{loadError}</p>
+
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={() => {
                   setLoading(true);
@@ -364,8 +508,13 @@ export default function App() {
             <div className="status empty">
               <h2>{emptyTitle}</h2>
               <p>{emptyText}</p>
+
               {isFiltering && (
-                <button className="btn btn-primary" onClick={clearFilters}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={clearFilters}
+                >
                   Clear filters
                 </button>
               )}
@@ -374,9 +523,18 @@ export default function App() {
 
           {!loading && !loadError && notes.length > 0 && splitSections && (
             <>
-              <NoteSection title="Pinned" notes={pinnedNotes} {...sectionProps} />
+              <NoteSection
+                title="Pinned"
+                notes={pinnedNotes}
+                {...sectionProps}
+              />
+
               {otherNotes.length > 0 && (
-                <NoteSection title="Others" notes={otherNotes} {...sectionProps} />
+                <NoteSection
+                  title="Others"
+                  notes={otherNotes}
+                  {...sectionProps}
+                />
               )}
             </>
           )}
@@ -398,11 +556,26 @@ export default function App() {
       {deleting && (
         <ConfirmDialog
           title="Move this note to Trash?"
-          message={`\u201C${deleting.title}\u201D will be moved to Trash and deleted automatically after 30 days.`}
+          message={`“${deleting.title}” will be moved to Trash and deleted automatically after 30 days.`}
           confirmLabel="Move to Trash"
           busy={deleteBusy}
           onConfirm={handleDelete}
-          onCancel={() => setDeleting(null)}
+          onCancel={() => {
+            if (!deleteBusy) setDeleting(null);
+          }}
+        />
+      )}
+
+      {permanentlyDeleting && (
+        <ConfirmDialog
+          title="Delete permanently?"
+          message={`“${permanentlyDeleting.title}” will be permanently deleted. This action cannot be undone.`}
+          confirmLabel="Delete permanently"
+          busy={permanentDeleteBusy}
+          onConfirm={handlePermanentDelete}
+          onCancel={() => {
+            if (!permanentDeleteBusy) setPermanentlyDeleting(null);
+          }}
         />
       )}
 
