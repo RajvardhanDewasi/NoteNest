@@ -12,3 +12,17 @@ export const COLORS = [
 ];
 
 export const CATEGORIES = ["Personal", "College", "Work", "Ideas", "Study", "Projects"];
+
+export const SORT_OPTIONS = [
+  { value: "updated", label: "Last updated" },
+  { value: "created", label: "Date created" },
+  { value: "title", label: "Title (A-Z)" },
+  { value: "viewed", label: "Recently viewed" },
+];
+
+export const UPDATED_OPTIONS = [
+  { value: "", label: "Any time" },
+  { value: "1", label: "Last 24 hours" },
+  { value: "7", label: "Last 7 days" },
+  { value: "30", label: "Last 30 days" },
+];

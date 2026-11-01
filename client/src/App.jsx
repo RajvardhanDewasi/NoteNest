@@ -1,18 +1,66 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getNotes, deleteNote, errorMessage } from "./api";
-import { CATEGORIES } from "./constants";
-import NoteCard from "./components/NoteCard";
+import {
+  getNotes,
+  getCounts,
+  getTags,
+  deleteNote,
+  pinNote,
+  errorMessage,
+} from "./api";
+import { CATEGORIES, SORT_OPTIONS } from "./constants";
+import usePersistentState from "./hooks/usePersistentState";
+import TopBar from "./components/TopBar";
+import Sidebar from "./components/Sidebar";
+import FilterBar from "./components/FilterBar";
+import NoteSection from "./components/NoteSection";
 import NoteEditor from "./components/NoteEditor";
 import ConfirmDialog from "./components/ConfirmDialog";
 import Toast from "./components/Toast";
 
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+// "Work" and "work" are the same tag for filtering, so list it once
+function uniqueTags(tags) {
+  const seen = new Set();
+  return tags.filter((t) => {
+    const key = t.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function App() {
+  /* ---------- data from the server ---------- */
   const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState(null);
+  const [allTags, setAllTags] = useState([]);
+  const [loading, setLoading] = useState(true); // first load only
+  const [fetching, setFetching] = useState(false); // later reloads (dims the list)
   const [loadError, setLoadError] = useState("");
+
+  /* ---------- what the user is looking at ---------- */
+  const [view, setView] = useState("all"); // "all" | "pinned"
+  const [category, setCategory] = useState("");
+  const [tag, setTag] = useState("");
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [updatedWithin, setUpdatedWithin] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+
+  // Remembered between visits
+  const [savedSort, setSort] = usePersistentState("notenest:sort", "updated");
+  const [savedLayout, setLayout] = usePersistentState("notenest:layout", "grid");
+  const sort = SORT_OPTIONS.some((o) => o.value === savedSort) ? savedSort : "updated";
+  const layout = savedLayout === "list" ? "list" : "grid";
+
+  /* ---------- screen state ---------- */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editor, setEditor] = useState(null); // null = closed, { note } = open (note null = new)
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -23,7 +71,6 @@ export default function App() {
     setToast({ text, type });
   }
 
-  // Auto-hide toast after a few seconds
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
@@ -36,32 +83,89 @@ export default function App() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const loadNotes = useCallback(async () => {
-    // If a newer request starts, answers to older ones are ignored
-    const id = ++requestId.current;
-    setLoadError("");
-    try {
-      const data = await getNotes({
-        search: debouncedSearch,
-        category: categoryFilter === "All" ? "" : categoryFilter,
-      });
-      if (id !== requestId.current) return;
-      setNotes(data);
-    } catch (err) {
-      if (id !== requestId.current) return;
-      setLoadError(errorMessage(err));
-    } finally {
-      if (id === requestId.current) setLoading(false);
-    }
-  }, [debouncedSearch, categoryFilter]);
+  /* ---------- loading ---------- */
+
+  // quiet = true reloads without dimming the list (used after pin, edit, delete)
+  const loadNotes = useCallback(
+    async (quiet = false) => {
+      // If a newer request starts, answers to older ones are ignored
+      const id = ++requestId.current;
+      setLoadError("");
+      if (!quiet) setFetching(true);
+      try {
+        const data = await getNotes({
+          view,
+          search: debouncedSearch,
+          category,
+          tag,
+          pinned: pinnedOnly,
+          updatedWithin,
+          sort,
+        });
+        if (id !== requestId.current) return;
+        setNotes(data);
+      } catch (err) {
+        if (id !== requestId.current) return;
+        setLoadError(errorMessage(err));
+      } finally {
+        if (id === requestId.current) {
+          setLoading(false);
+          setFetching(false);
+        }
+      }
+    },
+    [view, debouncedSearch, category, tag, pinnedOnly, updatedWithin, sort]
+  );
 
   useEffect(() => {
     loadNotes();
   }, [loadNotes]);
 
+  // Sidebar numbers and the list of tags
+  const loadMeta = useCallback(async () => {
+    try {
+      const [countData, tagData] = await Promise.all([getCounts(), getTags()]);
+      setCounts(countData);
+      setAllTags(uniqueTags(tagData));
+    } catch {
+      // These are extras. The main list shows its own error if the server is down.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMeta();
+  }, [loadMeta]);
+
+  // If the selected tag no longer exists on any note, stop filtering by it
+  useEffect(() => {
+    if (tag && !allTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+      setTag("");
+    }
+  }, [allTags]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function refreshAll() {
+    loadNotes(true);
+    loadMeta();
+  }
+
+  /* ---------- actions ---------- */
+
   function handleEditorClose() {
     setEditor(null);
-    loadNotes(); // show whatever was created or changed
+    refreshAll(); // show whatever was created or changed
+  }
+
+  async function handleTogglePin(note) {
+    const wantPinned = !note.isPinned;
+    try {
+      const updated = await pinNote(note._id, wantPinned);
+      // Update the card straight away, then fetch the properly ordered list
+      setNotes((prev) => prev.map((n) => (n._id === updated._id ? updated : n)));
+      showToast(updated.isPinned ? "Note pinned." : "Note unpinned.");
+      refreshAll();
+    } catch (err) {
+      showToast(errorMessage(err), "error");
+    }
   }
 
   async function handleDelete() {
@@ -70,7 +174,7 @@ export default function App() {
       await deleteNote(deleting._id);
       showToast("Note moved to Trash.");
       setDeleting(null);
-      await loadNotes();
+      refreshAll();
     } catch (err) {
       showToast(errorMessage(err), "error");
     } finally {
@@ -78,88 +182,161 @@ export default function App() {
     }
   }
 
-  const isFiltering = debouncedSearch !== "" || categoryFilter !== "All";
+  function handleNavSelect(nextView, nextCategory) {
+    setView(nextView);
+    setCategory(nextCategory);
+    setPinnedOnly(false);
+  }
+
+  function clearFilters() {
+    setCategory("");
+    setTag("");
+    setPinnedOnly(false);
+    setUpdatedWithin("");
+    setSearch("");
+    setDebouncedSearch("");
+  }
+
+  /* ---------- what to show ---------- */
+
+  const isFiltering =
+    debouncedSearch !== "" || category !== "" || tag !== "" || pinnedOnly || updatedWithin !== "";
+
+  const pinnedNotes = notes.filter((n) => n.isPinned);
+  const otherNotes = notes.filter((n) => !n.isPinned);
+  // On the main list, pinned notes get their own section above the rest
+  const splitSections = view === "all" && !pinnedOnly && pinnedNotes.length > 0;
+
+  const sectionProps = {
+    layout,
+    dim: fetching,
+    onEdit: (note) => setEditor({ note }),
+    onDelete: setDeleting,
+    onTogglePin: handleTogglePin,
+  };
+
+  let singleTitle = "All notes";
+  if (view === "pinned") singleTitle = "Pinned notes";
+  else if (isFiltering) singleTitle = "Results";
+
+  let emptyTitle = "No notes yet";
+  let emptyText = "Click \u201CAdd note\u201D to write your first one.";
+  if (isFiltering) {
+    emptyTitle = "No matching notes";
+    emptyText = "Try a different search or filter.";
+  } else if (view === "pinned") {
+    emptyTitle = "No pinned notes";
+    emptyText = "Click the pin icon on a note to keep it at the top.";
+  }
+
+  const showWelcome = view === "all" && !isFiltering;
 
   return (
-    <div className="app">
-      <header className="header">
-        <h1 className="logo">NoteNest</h1>
-        <input
-          type="search"
-          className="search"
-          placeholder="Search notes by title, text or tag"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Search notes"
+    <div className="app-shell">
+      <TopBar
+        search={search}
+        onSearch={setSearch}
+        sort={sort}
+        onSort={setSort}
+        layout={layout}
+        onLayout={setLayout}
+        onAdd={() => setEditor({ note: null })}
+        onMenu={() => setSidebarOpen(true)}
+      />
+
+      <div className="shell">
+        <Sidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          view={view}
+          category={category}
+          counts={counts}
+          onSelect={handleNavSelect}
         />
-      </header>
 
-      <main className="main">
-        <div className="note-form collapsed" onClick={() => setEditor({ note: null })}>
-          <input
-            type="text"
-            placeholder="Take a note..."
-            readOnly
-            aria-label="Create a note"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") setEditor({ note: null });
-            }}
-          />
-        </div>
+        <main className="content">
+          {showWelcome && (
+            <section className="welcome">
+              <h2>{greeting()}</h2>
+              <p>
+                {counts
+                  ? `You have ${counts.all} ${counts.all === 1 ? "note" : "notes"}, ${counts.pinned} pinned.`
+                  : "Welcome to NoteNest."}
+              </p>
+            </section>
+          )}
 
-        <div className="filters">
-          {["All", ...CATEGORIES].map((c) => (
-            <button
-              key={c}
-              className={`chip ${categoryFilter === c ? "active" : ""}`}
-              onClick={() => setCategoryFilter(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-
-        {loading && <p className="status">Loading notes...</p>}
-
-        {!loading && loadError && (
-          <div className="status error-box">
-            <p>{loadError}</p>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setLoading(true);
-                loadNotes();
+          <div className="note-form collapsed" onClick={() => setEditor({ note: null })}>
+            <input
+              type="text"
+              placeholder="Take a note..."
+              readOnly
+              aria-label="Create a note"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setEditor({ note: null });
               }}
-            >
-              Try again
-            </button>
+            />
           </div>
-        )}
 
-        {!loading && !loadError && notes.length === 0 && (
-          <div className="status empty">
-            <h2>{isFiltering ? "No matching notes" : "No notes yet"}</h2>
-            <p>
-              {isFiltering
-                ? "Try a different search or category."
-                : "Click \u201CTake a note...\u201D above to write your first one."}
-            </p>
-          </div>
-        )}
+          <FilterBar
+            categories={CATEGORIES}
+            category={category}
+            onCategory={setCategory}
+            tags={allTags}
+            tag={tag}
+            onTag={setTag}
+            updatedWithin={updatedWithin}
+            onUpdatedWithin={setUpdatedWithin}
+            pinnedOnly={pinnedOnly}
+            onPinnedOnly={setPinnedOnly}
+            showPinnedToggle={view === "all"}
+            isFiltering={isFiltering}
+            onClear={clearFilters}
+          />
 
-        {!loading && !loadError && notes.length > 0 && (
-          <section className="grid">
-            {notes.map((note) => (
-              <NoteCard
-                key={note._id}
-                note={note}
-                onEdit={(n) => setEditor({ note: n })}
-                onDelete={setDeleting}
-              />
-            ))}
-          </section>
-        )}
-      </main>
+          {loading && <p className="status">Loading notes...</p>}
+
+          {!loading && loadError && (
+            <div className="status error-box">
+              <p>{loadError}</p>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setLoading(true);
+                  loadNotes();
+                }}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {!loading && !loadError && notes.length === 0 && (
+            <div className="status empty">
+              <h2>{emptyTitle}</h2>
+              <p>{emptyText}</p>
+              {isFiltering && (
+                <button className="btn btn-primary" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {!loading && !loadError && notes.length > 0 && splitSections && (
+            <>
+              <NoteSection title="Pinned" notes={pinnedNotes} {...sectionProps} />
+              {otherNotes.length > 0 && (
+                <NoteSection title="Others" notes={otherNotes} {...sectionProps} />
+              )}
+            </>
+          )}
+
+          {!loading && !loadError && notes.length > 0 && !splitSections && (
+            <NoteSection title={singleTitle} notes={notes} {...sectionProps} />
+          )}
+        </main>
+      </div>
 
       {editor && (
         <NoteEditor
