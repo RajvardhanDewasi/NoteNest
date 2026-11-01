@@ -1,49 +1,76 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getNotes, createNote, updateNote, deleteNote, restoreNote, errorMessage } from "./api";
-import { CATEGORIES } from "./constants";
-import NoteForm from "./components/NoteForm";
-import NoteCard from "./components/NoteCard";
-import EditModal from "./components/EditModal";
+import {
+  getNotes,
+  getCounts,
+  getTags,
+  deleteNote,
+  pinNote,
+  errorMessage,
+} from "./api";
+import { CATEGORIES, SORT_OPTIONS } from "./constants";
+import usePersistentState from "./hooks/usePersistentState";
+import TopBar from "./components/TopBar";
+import Sidebar from "./components/Sidebar";
+import FilterBar from "./components/FilterBar";
+import NoteSection from "./components/NoteSection";
+import NoteEditor from "./components/NoteEditor";
 import ConfirmDialog from "./components/ConfirmDialog";
 import Toast from "./components/Toast";
 
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+// "Work" and "work" are the same tag for filtering, so list it once
+function uniqueTags(tags) {
+  const seen = new Set();
+  return tags.filter((t) => {
+    const key = t.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function App() {
-  const savedPreferences = (() => {
-    try { return JSON.parse(localStorage.getItem("notenest.preferences") || "{}"); } catch { return {}; }
-  })();
+  /* ---------- data from the server ---------- */
   const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState(null);
+  const [allTags, setAllTags] = useState([]);
+  const [loading, setLoading] = useState(true); // first load only
+  const [fetching, setFetching] = useState(false); // later reloads (dims the list)
   const [loadError, setLoadError] = useState("");
+
+  /* ---------- what the user is looking at ---------- */
+  const [view, setView] = useState("all"); // "all" | "pinned"
+  const [category, setCategory] = useState("");
+  const [tag, setTag] = useState("");
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [updatedWithin, setUpdatedWithin] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState(savedPreferences.categoryFilter || "All");
-  const [sortOrder, setSortOrder] = useState(savedPreferences.sortOrder || "newest");
-  const [view, setView] = useState(savedPreferences.view || "active");
-  const [theme, setTheme] = useState(() => localStorage.getItem("notenest.theme") === "dark" ? "dark" : "light");
-  const [showGuide, setShowGuide] = useState(() => localStorage.getItem("notenest.guideSeen") !== "true");
-  const [editing, setEditing] = useState(null);
+
+  // Remembered between visits
+  const [savedSort, setSort] = usePersistentState("notenest:sort", "updated");
+  const [savedLayout, setLayout] = usePersistentState("notenest:layout", "grid");
+  const sort = SORT_OPTIONS.some((o) => o.value === savedSort) ? savedSort : "updated";
+  const layout = savedLayout === "list" ? "list" : "grid";
+
+  /* ---------- screen state ---------- */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editor, setEditor] = useState(null); // null = closed, { note } = open (note null = new)
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [toast, setToast] = useState(null);
-  const searchRef = useRef(null);
-
-  useEffect(() => {
-    localStorage.setItem("notenest.preferences", JSON.stringify({ categoryFilter, sortOrder, view }));
-  }, [categoryFilter, sortOrder, view]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("notenest.theme", theme);
-    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-      meta.content = theme === "dark" ? "#151b16" : "#f7f8f6";
-    });
-  }, [theme]);
+  const requestId = useRef(0);
 
   function showToast(text, type = "success") {
     setToast({ text, type });
   }
 
-  // Auto-hide toast after a few seconds
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), toast.action ? 8000 : 3500);
@@ -77,44 +104,88 @@ export default function App() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const loadNotes = useCallback(async () => {
-    setLoading(true);
-    setLoadError("");
-    try {
-      const data = await getNotes(debouncedSearch, view);
-      setNotes(data);
-    } catch (err) {
-      setLoadError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch, view]);
+  /* ---------- loading ---------- */
+
+  // quiet = true reloads without dimming the list (used after pin, edit, delete)
+  const loadNotes = useCallback(
+    async (quiet = false) => {
+      // If a newer request starts, answers to older ones are ignored
+      const id = ++requestId.current;
+      setLoadError("");
+      if (!quiet) setFetching(true);
+      try {
+        const data = await getNotes({
+          view,
+          search: debouncedSearch,
+          category,
+          tag,
+          pinned: pinnedOnly,
+          updatedWithin,
+          sort,
+        });
+        if (id !== requestId.current) return;
+        setNotes(data);
+      } catch (err) {
+        if (id !== requestId.current) return;
+        setLoadError(errorMessage(err));
+      } finally {
+        if (id === requestId.current) {
+          setLoading(false);
+          setFetching(false);
+        }
+      }
+    },
+    [view, debouncedSearch, category, tag, pinnedOnly, updatedWithin, sort]
+  );
 
   useEffect(() => {
     loadNotes();
   }, [loadNotes]);
 
-  async function handleCreate(data) {
+  // Sidebar numbers and the list of tags
+  const loadMeta = useCallback(async () => {
     try {
-      await createNote(data);
-      showToast("Note saved.");
-      await loadNotes();
-      return true;
-    } catch (err) {
-      showToast(errorMessage(err), "error");
-      return false;
+      const [countData, tagData] = await Promise.all([getCounts(), getTags()]);
+      setCounts(countData);
+      setAllTags(uniqueTags(tagData));
+    } catch {
+      // These are extras. The main list shows its own error if the server is down.
     }
+  }, []);
+
+  useEffect(() => {
+    loadMeta();
+  }, [loadMeta]);
+
+  // If the selected tag no longer exists on any note, stop filtering by it
+  useEffect(() => {
+    if (tag && !allTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+      setTag("");
+    }
+  }, [allTags]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function refreshAll() {
+    loadNotes(true);
+    loadMeta();
   }
 
-  async function handleUpdate(id, data) {
+  /* ---------- actions ---------- */
+
+  function handleEditorClose() {
+    setEditor(null);
+    refreshAll(); // show whatever was created or changed
+  }
+
+  async function handleTogglePin(note) {
+    const wantPinned = !note.isPinned;
     try {
-      await updateNote(id, data);
-      showToast("Changes saved.");
-      await loadNotes();
-      return true;
+      const updated = await pinNote(note._id, wantPinned);
+      // Update the card straight away, then fetch the properly ordered list
+      setNotes((prev) => prev.map((n) => (n._id === updated._id ? updated : n)));
+      showToast(updated.isPinned ? "Note pinned." : "Note unpinned.");
+      refreshAll();
     } catch (err) {
       showToast(errorMessage(err), "error");
-      return false;
     }
   }
 
@@ -147,21 +218,10 @@ export default function App() {
   async function handleDelete() {
     setDeleteBusy(true);
     try {
-      const { note } = await deleteNote(deleting._id);
-      const wasInTrash = Boolean(deleting.deletedAt);
+      await deleteNote(deleting._id);
+      showToast("Note moved to Trash.");
       setDeleting(null);
-      await loadNotes();
-      if (wasInTrash) {
-        showToast("Note permanently deleted.");
-      } else setToast({ text: "Note moved to Trash.", type: "success", action: async () => {
-        try {
-          await restoreNote(note);
-          setToast({ text: "Note restored.", type: "success" });
-          await loadNotes();
-        } catch (err) {
-          showToast(errorMessage(err), "error");
-        }
-      } });
+      refreshAll();
     } catch (err) {
       showToast(errorMessage(err), "error");
     } finally {
@@ -169,124 +229,175 @@ export default function App() {
     }
   }
 
-  const visibleNotes = (categoryFilter === "All" ? notes : notes.filter((n) => n.category === categoryFilter))
-    .slice()
-    .sort((a, b) => {
-      if (view !== "trash" && Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
-      if (sortOrder === "title") return a.title.localeCompare(b.title);
-      const dateDiff = new Date(a.updatedAt) - new Date(b.updatedAt);
-      return sortOrder === "oldest" ? dateDiff : -dateDiff;
-    });
-  const isFiltering = debouncedSearch !== "" || categoryFilter !== "All" || view !== "active";
-  const totalLabel = `${visibleNotes.length} ${visibleNotes.length === 1 ? "note" : "notes"}`;
+  function handleNavSelect(nextView, nextCategory) {
+    setView(nextView);
+    setCategory(nextCategory);
+    setPinnedOnly(false);
+  }
+
+  function clearFilters() {
+    setCategory("");
+    setTag("");
+    setPinnedOnly(false);
+    setUpdatedWithin("");
+    setSearch("");
+    setDebouncedSearch("");
+  }
+
+  /* ---------- what to show ---------- */
+
+  const isFiltering =
+    debouncedSearch !== "" || category !== "" || tag !== "" || pinnedOnly || updatedWithin !== "";
+
+  const pinnedNotes = notes.filter((n) => n.isPinned);
+  const otherNotes = notes.filter((n) => !n.isPinned);
+  // On the main list, pinned notes get their own section above the rest
+  const splitSections = view === "all" && !pinnedOnly && pinnedNotes.length > 0;
+
+  const sectionProps = {
+    layout,
+    dim: fetching,
+    onEdit: (note) => setEditor({ note }),
+    onDelete: setDeleting,
+    onTogglePin: handleTogglePin,
+  };
+
+  let singleTitle = "All notes";
+  if (view === "pinned") singleTitle = "Pinned notes";
+  else if (isFiltering) singleTitle = "Results";
+
+  let emptyTitle = "No notes yet";
+  let emptyText = "Click \u201CAdd note\u201D to write your first one.";
+  if (isFiltering) {
+    emptyTitle = "No matching notes";
+    emptyText = "Try a different search or filter.";
+  } else if (view === "pinned") {
+    emptyTitle = "No pinned notes";
+    emptyText = "Click the pin icon on a note to keep it at the top.";
+  }
+
+  const showWelcome = view === "all" && !isFiltering;
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 4.75h7.5L19 9.25v10A1.75 1.75 0 0 1 17.25 21h-10A1.75 1.75 0 0 1 5.5 19.25v-12A2.5 2.5 0 0 1 8 4.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><path d="M14 5v4.5h4.5M8.5 13h7M8.5 16.5h7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg></span>
-          <h1 className="logo">NoteNest</h1>
-        </div>
-        <div className="search-wrap">
-          <svg className="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" strokeWidth="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
-          <input
-            type="search"
-            className="search"
-            ref={searchRef}
-            placeholder="Search your notes"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search notes"
-            aria-describedby="search-hint"
+    <div className="app-shell">
+      <TopBar
+        search={search}
+        onSearch={setSearch}
+        sort={sort}
+        onSort={setSort}
+        layout={layout}
+        onLayout={setLayout}
+        onAdd={() => setEditor({ note: null })}
+        onMenu={() => setSidebarOpen(true)}
+      />
+
+      <div className="shell">
+        <Sidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          view={view}
+          category={category}
+          counts={counts}
+          onSelect={handleNavSelect}
+        />
+
+        <main className="content">
+          {showWelcome && (
+            <section className="welcome">
+              <h2>{greeting()}</h2>
+              <p>
+                {counts
+                  ? `You have ${counts.all} ${counts.all === 1 ? "note" : "notes"}, ${counts.pinned} pinned.`
+                  : "Welcome to NoteNest."}
+              </p>
+            </section>
+          )}
+
+          <div className="note-form collapsed" onClick={() => setEditor({ note: null })}>
+            <input
+              type="text"
+              placeholder="Take a note..."
+              readOnly
+              aria-label="Create a note"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setEditor({ note: null });
+              }}
+            />
+          </div>
+
+          <FilterBar
+            categories={CATEGORIES}
+            category={category}
+            onCategory={setCategory}
+            tags={allTags}
+            tag={tag}
+            onTag={setTag}
+            updatedWithin={updatedWithin}
+            onUpdatedWithin={setUpdatedWithin}
+            pinnedOnly={pinnedOnly}
+            onPinnedOnly={setPinnedOnly}
+            showPinnedToggle={view === "all"}
+            isFiltering={isFiltering}
+            onClear={clearFilters}
           />
-        </div>
-        <span className="header-note" id="search-hint">Search · Ctrl K</span>
-        <button className="theme-toggle" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={`Switch to ${theme === "dark" ? "original" : "dark"} theme`} title={`Switch to ${theme === "dark" ? "original" : "dark"} theme`}>
-          {theme === "dark" ? <><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span>Original</span></> : <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.8 8.8 0 1 0 20.5 15.2Z"/></svg><span>Dark</span></>}
-        </button>
-      </header>
 
-      <main className="main">
-        <section className="intro">
-          <p className="eyebrow">Your personal space</p>
-          <h2>Good thoughts, gathered.</h2>
-          <p>Keep the little things, big ideas, and everything in between.</p>
-        </section>
-        <NoteForm onCreate={handleCreate} onError={(m) => showToast(m, "error")} />
+          {loading && <p className="status">Loading notes...</p>}
 
-        {showGuide && (
-          <aside className="first-use" aria-label="Quick start guide">
-            <div><strong>A quick note about NoteNest</strong><p>Write a note, choose a category, then pin or archive it from its card. Deleted notes stay in Trash until you remove them permanently.</p></div>
-            <button className="guide-dismiss" onClick={() => { localStorage.setItem("notenest.guideSeen", "true"); setShowGuide(false); }} aria-label="Dismiss getting started guide">×</button>
-          </aside>
-        )}
-
-        <div className="workspace">
-          <aside className="sidebar" aria-label="Note navigation">
-            <p className="sidebar-label">Workspace</p>
-            <nav className="sidebar-nav" aria-label="Views">
-              {[{ id: "active", label: "All notes" }, { id: "pinned", label: "Pinned" }, { id: "archive", label: "Archive" }, { id: "trash", label: "Trash" }].map((item) => (
-                <button key={item.id} className={`nav-item ${view === item.id ? "selected" : ""}`} aria-current={view === item.id ? "page" : undefined} onClick={() => setView(item.id)}><span className="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">{item.id === "active" ? <><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></> : item.id === "pinned" ? <><path d="m9 4 6 0 1 5 3 3v1H5v-1l3-3 1-5Z"/><path d="M12 13v7"/></> : item.id === "archive" ? <><path d="M4 7h16v13H4zM3 4h18v3H3z"/><path d="M9 11h6"/></> : <><path d="M4 7h16M10 11v6M14 11v6"/><path d="m6 7 1 13h10l1-13M9 7V4h6v3"/></>}</svg></span>{item.label}</button>
-              ))}
-            </nav>
-            <p className="sidebar-label category-label">Categories</p>
-            <nav className="sidebar-nav" aria-label="Categories">
-              {["All", ...CATEGORIES].map((category) => (
-                <button key={category} className={`nav-item ${categoryFilter === category ? "selected" : ""}`} aria-pressed={categoryFilter === category} onClick={() => setCategoryFilter(category)}><span className={`category-dot dot-${category.toLowerCase()}`} aria-hidden="true" />{category === "All" ? "All categories" : category}</button>
-              ))}
-            </nav>
-            <div className="sidebar-tip"><span className="tip-spark" aria-hidden="true">✦</span><p><strong>A clear mind starts here.</strong><br />Keep your ideas in one calm place.</p></div>
-          </aside>
-          <section className="notes-area" aria-label="Notes">
-            <div className="section-toolbar">
-              <div><p className="eyebrow section-eyebrow">{view === "active" ? "Your space" : "Your library"}</p><h3 className="section-title">{view === "archive" ? "Archive" : view === "trash" ? "Trash" : view === "pinned" ? "Pinned notes" : "Your notes"} {!loading && !loadError && <span className="note-count">{totalLabel}</span>}</h3></div>
-              <label className="sort-control"><span className="sort-label">Sort by</span><select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} aria-label="Sort notes"><option value="newest">Last updated</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select></label>
+          {!loading && loadError && (
+            <div className="status error-box">
+              <p>{loadError}</p>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setLoading(true);
+                  loadNotes();
+                }}
+              >
+                Try again
+              </button>
             </div>
+          )}
 
-        {loading && <section className="grid" aria-label="Loading notes" aria-busy="true">{[0, 1, 2, 3, 4, 5].map((n) => <div className="skeleton-card" key={n}><span /><span /><span /></div>)}</section>}
+          {!loading && !loadError && notes.length === 0 && (
+            <div className="status empty">
+              <h2>{emptyTitle}</h2>
+              <p>{emptyText}</p>
+              {isFiltering && (
+                <button className="btn btn-primary" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
 
-        {!loading && loadError && (
-          <div className="status error-box">
-            <p>{loadError}</p>
-            <button className="btn btn-primary" onClick={loadNotes}>Try again</button>
-          </div>
-        )}
+          {!loading && !loadError && notes.length > 0 && splitSections && (
+            <>
+              <NoteSection title="Pinned" notes={pinnedNotes} {...sectionProps} />
+              {otherNotes.length > 0 && (
+                <NoteSection title="Others" notes={otherNotes} {...sectionProps} />
+              )}
+            </>
+          )}
 
-        {!loading && !loadError && visibleNotes.length === 0 && (
-          <div className="status empty">
-            {!isFiltering && <div className="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 4.75h7.5L19 9.25v10A1.75 1.75 0 0 1 17.25 21h-10A1.75 1.75 0 0 1 5.5 19.25v-12A2.5 2.5 0 0 1 8 4.75Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/><path d="M14 5v4.5h4.5M8.5 13h7M8.5 16.5h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg></div>}
-            <h2>{view === "trash" ? "Trash is empty" : view === "archive" ? "Nothing archived yet" : view === "pinned" ? "No pinned notes yet" : isFiltering ? "No matching notes" : "No notes yet"}</h2>
-            <p>
-              {view === "trash" ? "Deleted notes will appear here, where you can restore or remove them permanently." : view === "archive" ? "Archive notes to keep them without cluttering your main list." : view === "pinned" ? "Pin a note to keep it close at hand." : isFiltering
-                ? "Try a different search or category."
-                : "Click \u201CTake a note...\u201D above to write your first one."}
-            </p>
-          </div>
-        )}
+          {!loading && !loadError && notes.length > 0 && !splitSections && (
+            <NoteSection title={singleTitle} notes={notes} {...sectionProps} />
+          )}
+        </main>
+      </div>
 
-        {!loading && !loadError && visibleNotes.length > 0 && (
-          <section className="grid">
-            {visibleNotes.map((note) => (
-              <NoteCard key={note._id} note={note} view={view} onEdit={setEditing} onDelete={setDeleting} onPin={handlePin} onArchive={handleArchive} onRestore={handleRestore} />
-            ))}
-          </section>
-        )}
-          </section>
-        </div>
-      </main>
-
-      {editing && (
-        <EditModal
-          note={editing}
-          onSave={handleUpdate}
-          onClose={() => setEditing(null)}
-          onError={(m) => showToast(m, "error")}
+      {editor && (
+        <NoteEditor
+          key={editor.note ? editor.note._id : "new"}
+          note={editor.note}
+          onClose={handleEditorClose}
         />
       )}
 
       {deleting && (
         <ConfirmDialog
-          note={deleting}
+          title="Move this note to Trash?"
+          message={`\u201C${deleting.title}\u201D will be moved to Trash and deleted automatically after 30 days.`}
+          confirmLabel="Move to Trash"
           busy={deleteBusy}
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
