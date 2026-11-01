@@ -71,6 +71,18 @@ const noteSchema = new mongoose.Schema(
         message: "A checklist can have at most 200 items",
       },
     },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
+    archived: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

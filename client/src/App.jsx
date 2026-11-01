@@ -73,9 +73,30 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3500);
+    const t = setTimeout(() => setToast(null), toast.action ? 8000 : 3500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    function handleKeys(event) {
+      const target = event.target;
+      const typing = target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      } else if (event.key === "Escape") {
+        if (editing) setEditing(null);
+        else if (deleting && !deleteBusy) setDeleting(null);
+        else if (document.activeElement === searchRef.current && search) setSearch("");
+      }
+      if (!typing && event.key === "/") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeys);
+    return () => window.removeEventListener("keydown", handleKeys);
+  }, [editing, deleting, deleteBusy, search]);
 
   // Wait briefly after typing before searching
   useEffect(() => {
@@ -166,6 +187,32 @@ export default function App() {
     } catch (err) {
       showToast(errorMessage(err), "error");
     }
+  }
+
+  async function handlePin(note) {
+    try {
+      await updateNote(note._id, { ...note, pinned: !note.pinned });
+      await loadNotes();
+      showToast(note.pinned ? "Note unpinned." : "Note pinned.");
+    } catch (err) {
+      showToast(errorMessage(err), "error");
+    }
+  }
+
+  async function handleArchive(note) {
+    try {
+      await updateNote(note._id, { ...note, archived: view !== "archive" });
+      await loadNotes();
+      showToast(view === "archive" ? "Note moved back to your notes." : "Note archived.");
+    } catch (err) { showToast(errorMessage(err), "error"); }
+  }
+
+  async function handleRestore(note) {
+    try {
+      await restoreNote(note);
+      await loadNotes();
+      showToast("Note restored.");
+    } catch (err) { showToast(errorMessage(err), "error"); }
   }
 
   async function handleDelete() {
