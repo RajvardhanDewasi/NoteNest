@@ -3,15 +3,15 @@ const mongoose = require("mongoose");
 
 const COLORS = [
   "#ffffff",
-  "#fff3b0",
-  "#ffd6d6",
-  "#d6f5d6",
-  "#d6e8ff",
-  "#e9dcff",
-  "#ffe2c6",
-  "#d5f5ef",
-  "#f6d9f0",
-  "#e8edf2",
+  "#f5f1e8",
+  "#e9efe8",
+  "#edf2f1",
+  "#eaf0f5",
+  "#f0edf5",
+  "#f5eded",
+  "#f3eee6",
+  "#eef0ed",
+  "#f5eee8",
 ];
 
 const CATEGORIES = [
