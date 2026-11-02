@@ -30,6 +30,7 @@ function PinIcon({ filled }) {
 
 export default function NoteCard({
   note,
+  onView,
   onEdit,
   onDelete,
   onTogglePin,
@@ -49,7 +50,7 @@ export default function NoteCard({
     text.length > 180 ? `${text.slice(0, 180).trimEnd()}...` : text;
 
   function openNote() {
-    if (!isTrash) onEdit(note);
+    if (!isTrash) onView(note);
   }
 
   return (
@@ -60,6 +61,14 @@ export default function NoteCard({
         cursor: isTrash ? "default" : "pointer",
       }}
       onClick={openNote}
+      tabIndex={isTrash ? undefined : 0}
+      aria-label={isTrash ? undefined : `Open ${note.title}`}
+      onKeyDown={(event) => {
+        if (!isTrash && event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          openNote();
+        }
+      }}
     >
       {!isTrash && (
         <button

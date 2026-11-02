@@ -10,6 +10,7 @@ import {
   unarchiveNote,
   restoreNote,
   permanentDeleteNote,
+  toggleChecklistItem,
   errorMessage,
 } from "./api";
 import { CATEGORIES, SORT_OPTIONS } from "./constants";
@@ -19,6 +20,7 @@ import Sidebar from "./components/Sidebar";
 import FilterBar from "./components/FilterBar";
 import NoteSection from "./components/NoteSection";
 import NoteEditor from "./components/NoteEditor";
+import NoteViewModal from "./components/NoteViewModal";
 import ConfirmDialog from "./components/ConfirmDialog";
 import Toast from "./components/Toast";
 
@@ -70,6 +72,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchRef = useRef(null);
   const [editor, setEditor] = useState(null);
+  const [viewing, setViewing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [permanentlyDeleting, setPermanentlyDeleting] = useState(null);
@@ -106,6 +109,7 @@ export default function App() {
         searchRef.current?.focus();
       } else if (event.key === "Escape") {
         if (editor) setEditor(null);
+        else if (viewing) setViewing(null);
         else if (deleting && !deleteBusy) setDeleting(null);
         else if (permanentlyDeleting && !permanentDeleteBusy) {
           setPermanentlyDeleting(null);
@@ -124,6 +128,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeys);
   }, [
     editor,
+    viewing,
     deleting,
     deleteBusy,
     permanentlyDeleting,
@@ -230,6 +235,24 @@ export default function App() {
     }
   }
 
+  async function handleToggleChecklistItem(note, index) {
+    const optimisticItems = note.checklistItems.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, completed: !item.completed } : item
+    );
+    setViewing((current) => current?._id === note._id ? { ...current, checklistItems: optimisticItems } : current);
+
+    try {
+      const updated = await toggleChecklistItem(note._id, index);
+      setViewing((current) => current?._id === updated._id ? updated : current);
+      setNotes((current) => current.map((item) => item._id === updated._id ? updated : item));
+      return true;
+    } catch (err) {
+      setViewing((current) => current?._id === note._id ? { ...current, checklistItems: note.checklistItems } : current);
+      showToast(errorMessage(err), "error");
+      return false;
+    }
+  }
+
   // Kept available for the archive action used elsewhere in the app.
   async function handleArchive(note) {
     try {
@@ -330,6 +353,7 @@ export default function App() {
     layout,
     dim: fetching,
     isTrash: view === "trash",
+    onView: setViewing,
     onEdit: (note) => setEditor({ note }),
     onDelete: setDeleting,
     onTogglePin: handleTogglePin,
@@ -544,6 +568,22 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {viewing && (
+        <NoteViewModal
+          note={viewing}
+          onClose={() => setViewing(null)}
+          onToggleChecklistItem={handleToggleChecklistItem}
+          onDelete={(note) => {
+            setViewing(null);
+            setDeleting(note);
+          }}
+          onEdit={(note) => {
+            setViewing(null);
+            setEditor({ note });
+          }}
+        />
+      )}
 
       {editor && (
         <NoteEditor
