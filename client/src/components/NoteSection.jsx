@@ -7,6 +7,7 @@ export default function NoteSection({
   layout,
   dim,
   onEdit,
+  onView,
   onDelete,
   onTogglePin,
   isTrash = false,
@@ -28,6 +29,7 @@ export default function NoteSection({
           <NoteCard
             key={note._id}
             note={note}
+            onView={onView}
             onEdit={onEdit}
             onDelete={onDelete}
             onTogglePin={onTogglePin}

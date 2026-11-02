@@ -24,6 +24,9 @@ export const createNote = (note) => api.post("/notes", note).then((res) => res.d
 
 export const updateNote = (id, note) => api.put(`/notes/${id}`, note).then((res) => res.data);
 
+export const toggleChecklistItem = (id, index) =>
+  api.patch(`/notes/${id}/checklist/${index}`).then((res) => res.data);
+
 // Moves the note to Trash
 export const deleteNote = (id) => api.delete(`/notes/${id}`).then((res) => res.data);
 

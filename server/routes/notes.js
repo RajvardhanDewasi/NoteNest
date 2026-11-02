@@ -328,6 +328,31 @@ router.put("/:id", validateId, async (req, res, next) => {
   }
 });
 
+// Toggle one checklist row without opening the full note editor.
+router.patch("/:id/checklist/:index", validateId, async (req, res, next) => {
+  try {
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0) {
+      return res.status(400).json({ message: "Invalid checklist item" });
+    }
+
+    const note = await Note.findById(req.params.id);
+    if (!note) return res.status(404).json({ message: "Note not found" });
+    if (note.isDeleted || note.isArchived) {
+      return res.status(400).json({ message: "Restore this note before changing its checklist" });
+    }
+    if (note.noteType !== "checklist" || index >= note.checklistItems.length) {
+      return res.status(404).json({ message: "Checklist item not found" });
+    }
+
+    note.checklistItems[index].completed = !note.checklistItems[index].completed;
+    await note.save();
+    res.json(note);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* ------------------------------------------------------------------ */
 /* Actions                                                             */
 /* ------------------------------------------------------------------ */
