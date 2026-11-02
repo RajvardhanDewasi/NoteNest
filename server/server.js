@@ -10,6 +10,8 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const notesRouter = require("./routes/notes");
 const Note = require("./models/Note");
+const authRouter = require("./routes/auth");
+const authenticate = require("./middleware/authenticate");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,7 +26,9 @@ app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
-app.use("/api/notes", notesRouter);
+app.use("/api/auth", authRouter);
+
+app.use("/api/notes", authenticate, notesRouter);
 
 // Unknown routes
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));
@@ -76,6 +80,10 @@ async function backfillPlainText() {
 }
 
 async function start() {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    console.error("JWT_SECRET is missing or too short.");
+    process.exit(1);
+  }
   if (!MONGODB_URI) {
     console.error("MONGODB_URI is missing. Copy .env.example to .env and try again.");
     process.exit(1);

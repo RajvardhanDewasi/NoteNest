@@ -57,7 +57,11 @@ export default function NoteCard({
     <article
       className={`note-card ${isTrash ? "trash-card" : ""}`}
       style={{
-        background: note.color,
+        "--note-card-color": note.color || "#ffffff",
+        "--note-accent":
+          note.color && note.color !== "#ffffff"
+            ? note.color
+            : "#c7d6cb",
         cursor: isTrash ? "default" : "pointer",
       }}
       onClick={openNote}

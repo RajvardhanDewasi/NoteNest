@@ -23,6 +23,7 @@ import NoteEditor from "./components/NoteEditor";
 import NoteViewModal from "./components/NoteViewModal";
 import ConfirmDialog from "./components/ConfirmDialog";
 import Toast from "./components/Toast";
+import { useAuth } from "./auth/AuthContext";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -79,6 +80,7 @@ export default function App() {
   const [permanentDeleteBusy, setPermanentDeleteBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const requestId = useRef(0);
+  const { user, logout } = useAuth();
 
   function showToast(text, type = "success") {
     setToast({ text, type });
@@ -399,6 +401,8 @@ export default function App() {
         onLayout={setLayout}
         onAdd={() => setEditor({ note: null })}
         onMenu={() => setSidebarOpen(true)}
+        user={user}
+        onLogout={logout}
       />
 
       <div className="shell">
@@ -417,9 +421,8 @@ export default function App() {
               <h2>{greeting()}</h2>
               <p>
                 {counts
-                  ? `You have ${counts.all} ${
-                      counts.all === 1 ? "note" : "notes"
-                    }, ${counts.pinned} pinned.`
+                  ? `You have ${counts.all} ${counts.all === 1 ? "note" : "notes"
+                  }, ${counts.pinned} pinned.`
                   : "Welcome to NoteNest."}
               </p>
             </section>

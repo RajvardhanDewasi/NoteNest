@@ -153,33 +153,91 @@ function checkBody(data, requireTitle = true) {
 // Numbers for the sidebar badges
 router.get("/meta/counts", async (req, res, next) => {
   try {
-    const [all, pinned, archive, trash, reminders, byCategory] = await Promise.all([
-      Note.countDocuments({ ...NOT_DELETED, ...NOT_ARCHIVED }),
-      Note.countDocuments({ ...NOT_DELETED, ...NOT_ARCHIVED, isPinned: true }),
-      Note.countDocuments({ ...NOT_DELETED, isArchived: true }),
-      Note.countDocuments({ isDeleted: true }),
-      Note.countDocuments({ ...NOT_DELETED, ...NOT_ARCHIVED, reminderAt: { $ne: null } }),
+    const owner = req.user._id;
+
+    const [
+      all,
+      pinned,
+      archive,
+      trash,
+      reminders,
+      byCategory,
+    ] = await Promise.all([
+      Note.countDocuments({
+        owner,
+        ...NOT_DELETED,
+        ...NOT_ARCHIVED,
+      }),
+
+      Note.countDocuments({
+        owner,
+        ...NOT_DELETED,
+        ...NOT_ARCHIVED,
+        isPinned: true,
+      }),
+
+      Note.countDocuments({
+        owner,
+        ...NOT_DELETED,
+        isArchived: true,
+      }),
+
+      Note.countDocuments({
+        owner,
+        isDeleted: true,
+      }),
+
+      Note.countDocuments({
+        owner,
+        ...NOT_DELETED,
+        ...NOT_ARCHIVED,
+        reminderAt: { $ne: null },
+      }),
+
       Note.aggregate([
-        { $match: { ...NOT_DELETED, ...NOT_ARCHIVED } },
-        { $group: { _id: "$category", count: { $sum: 1 } } },
+        {
+          $match: {
+            owner,
+            ...NOT_DELETED,
+            ...NOT_ARCHIVED,
+          },
+        },
+        {
+          $group: {
+            _id: "$category",
+            count: { $sum: 1 },
+          },
+        },
       ]),
     ]);
 
     const categories = {};
+
     byCategory.forEach((row) => {
       categories[row._id] = row.count;
     });
 
-    res.json({ all, pinned, archive, trash, reminders, categories });
+    res.json({
+      all,
+      pinned,
+      archive,
+      trash,
+      reminders,
+      categories,
+    });
   } catch (err) {
     next(err);
   }
 });
 
+
 // Every tag in use, for the tag filter
 router.get("/meta/tags", async (req, res, next) => {
   try {
-    const tags = await Note.distinct("tags", { ...NOT_DELETED });
+    const tags = await Note.distinct("tags", {
+      owner: req.user._id,
+      ...NOT_DELETED,
+    });
     tags.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     res.json(tags);
   } catch (err) {
@@ -200,7 +258,7 @@ router.get("/meta/tags", async (req, res, next) => {
 //   sort          updated | created | title | viewed
 router.get("/", async (req, res, next) => {
   try {
-    const filter = {};
+    const filter = { owner: req.user._id, };
     const view = String(req.query.view || "all");
 
     if (view === "trash") {
@@ -273,7 +331,10 @@ router.get("/", async (req, res, next) => {
 
 router.get("/:id", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -295,7 +356,10 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ message: error });
     }
 
-    const note = await Note.create(data);
+    const note = await Note.create({
+      ...data,
+      owner: req.user._id,
+    });
 
     res.status(201).json(note);
   } catch (err) {
@@ -313,10 +377,17 @@ router.put("/:id", validateId, async (req, res, next) => {
       return res.status(400).json({ message: error });
     }
 
-    const note = await Note.findByIdAndUpdate(req.params.id, data, {
-      new: true,
-      runValidators: true,
-    });
+    const note = await Note.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        owner: req.user._id,
+      },
+      data,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -336,7 +407,10 @@ router.patch("/:id/checklist/:index", validateId, async (req, res, next) => {
       return res.status(400).json({ message: "Invalid checklist item" });
     }
 
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
     if (!note) return res.status(404).json({ message: "Note not found" });
     if (note.isDeleted || note.isArchived) {
       return res.status(400).json({ message: "Restore this note before changing its checklist" });
@@ -361,8 +435,11 @@ router.patch("/:id/checklist/:index", validateId, async (req, res, next) => {
 // timestamps:false so that just opening a note does not change "updated" time.
 router.post("/:id/view", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findByIdAndUpdate(
-      req.params.id,
+    const note = await Note.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        owner: req.user._id,
+      },
       { viewedAt: new Date() },
       { new: true, timestamps: false }
     );
@@ -380,7 +457,10 @@ router.post("/:id/view", validateId, async (req, res, next) => {
 // Pin or unpin. Send { "pinned": true/false }, or send nothing to toggle.
 router.patch("/:id/pin", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -405,7 +485,10 @@ router.patch("/:id/pin", validateId, async (req, res, next) => {
 // Move a note to the Archive (also unpins it)
 router.patch("/:id/archive", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -428,7 +511,10 @@ router.patch("/:id/archive", validateId, async (req, res, next) => {
 // Bring a note back from the Archive
 router.patch("/:id/unarchive", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -446,9 +532,16 @@ router.patch("/:id/unarchive", validateId, async (req, res, next) => {
 // Restore a note from Trash (it returns to the main dashboard)
 router.patch("/:id/restore", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findByIdAndUpdate(
-      req.params.id,
-      { isDeleted: false, isArchived: false, deletedAt: null },
+    const note = await Note.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        owner: req.user._id,
+      },
+      {
+        isDeleted: false,
+        isArchived: false,
+        deletedAt: null,
+      },
       { new: true }
     );
 
@@ -466,7 +559,10 @@ router.patch("/:id/restore", validateId, async (req, res, next) => {
 // (Declared before "/:id" so "/:id/permanent" is never mistaken for a plain delete.)
 router.delete("/:id/permanent", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -489,7 +585,10 @@ router.delete("/:id/permanent", validateId, async (req, res, next) => {
 // Move a note to Trash (same URL and response shape as before)
 router.delete("/:id", validateId, async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });

@@ -722,7 +722,7 @@ body,
 }
 
 :root[data-theme="dark"] .note-card {
-  background: #202d23 !important;
+  background: var(--note-card-color, #202d23) !important;
   border-color: #344638;
 }
 
@@ -991,5 +991,111 @@ body,
 
   .trash-header h2 {
     font-size: 1.35rem;
+  }
+}
+
+/* =====================================
+   NOTENEST - USER ACCOUNT CONTROLS
+   ===================================== */
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  background: #e7f1e9;
+  color: #286345;
+  font-size: .76rem;
+  font-weight: 800;
+}
+
+.account-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: .8rem;
+  font-weight: 650;
+}
+
+.account-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 650;
+}
+
+.account-logout:hover {
+  color: var(--accent-dark);
+  border-color: #b8cfbd;
+  background: var(--bg);
+}
+
+.account-logout svg {
+  width: 16px;
+  height: 16px;
+}
+
+:root[data-theme="dark"] .account-avatar {
+  background: #304536;
+  color: #c7e4ce;
+}
+
+:root[data-theme="dark"] .account-logout {
+  background: #263129;
+  color: #cbd8cd;
+  border-color: #3b483d;
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    grid-template-columns: auto 1fr auto auto auto;
+    grid-template-areas:
+      "menu brand account layout add"
+      "search search search search sort";
+  }
+
+  .account-actions {
+    grid-area: account;
+    gap: 0;
+  }
+
+  .account-avatar {
+    width: 29px;
+    height: 29px;
+    flex-basis: 29px;
+  }
+
+  .account-name,
+  .account-logout span {
+    display: none;
+  }
+
+  .account-logout {
+    width: 30px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
 }
